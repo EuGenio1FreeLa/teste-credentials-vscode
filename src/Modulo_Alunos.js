@@ -42,17 +42,21 @@ function processarFormularioDeCadastro(formData) {
     protegerPlanilhaAluno_(novaPlanilha.getId());
 
     // 5. Preparar a nova linha para ser inserida na planilha.
+    const dataInicio = new Date(formData.dataInicio + 'T12:00:00');
+    const dataVencimento = new Date(dataInicio);
+    dataVencimento.setDate(dataVencimento.getDate() + 30);
+
     const novaLinha = [
-      novoId,
-      new Date(formData.dataInicio + 'T12:00:00'),
-      formData.nomeCompleto,
-      formData.email,
-      'Ativo',
-      urlNovaPlanilha,
-      formData.whatsapp,
-      null,
-      formData.objetivo,
-      formData.observacoes
+      novoId,                                 // 1. ID_aluno
+      formData.nomeCompleto,                  // 2. Nome Completo
+      formData.email,                         // 3. E-mail
+      formData.whatsapp,                      // 4. Whatsapp
+      dataInicio,                             // 5. Data_Início
+      'Ativo',                                // 6. Status
+      formData.objetivo,                      // 7. Objetivo
+      novaPlanilha.getId(),                   // 8. ID_Planilha_Aluno
+      dataVencimento,                         // 9. Data_Vencimento (30 dias após início)
+      formData.observacoes                    // 10. Observações
     ];
 
     // 6. Adicionar a nova linha ao final da aba de cadastro
@@ -132,7 +136,7 @@ function gerarProximoIdAluno_() {
     const idFormatado = 'AL' + ultimoId.toString().padStart(3, '0');
     return idFormatado;
   } finally {
-    lock.releaseLock();A
+    lock.releaseLock();
   }
 }
 

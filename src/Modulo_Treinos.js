@@ -101,24 +101,24 @@ function enviarTreino() {
     return;
   }
   const dadosCentral = lerDadosCentralTreinos();
-  const dadosExistentes = lerSemanaAtualAluno(idPlanilhaAluno);
-
-  if (dadosExistentes && dadosExistentes.length > 0) {
-    const resposta = SpreadsheetApp.getUi().prompt(
-      'Já existem dados preenchidos pelo aluno nesta semana. O que deseja fazer?',
-      'Digite: MANTER para manter, APAGAR para sobrescrever, CANCELAR para cancelar.',
-      SpreadsheetApp.getUi().ButtonSet.OK_CANCEL
-    );
-    if (resposta.getSelectedButton() !== SpreadsheetApp.getUi().Button.OK) return;
-    const acao = resposta.getResponseText().toUpperCase();
-    if (acao === 'CANCELAR') return;
-    if (acao === 'APAGAR') apagarSemanaAtualAluno(idPlanilhaAluno);
-    // Se for manter, não faz nada, apenas adiciona novos registros.
+  if (!dadosCentral || dadosCentral.length === 0) {
+    SpreadsheetApp.getUi().alert('Preencha o treino na Central de Treinos antes de enviar.');
+    return;
   }
 
-  escreverTreinoAluno(idPlanilhaAluno, dadosCentral);
-  registrarTreinoBrainer(aluno, dadosCentral);
-  SpreadsheetApp.getUi().alert('Treino enviado com sucesso!');
+  // Abrir planilha do aluno e aba de treino semanal
+  const planilhaAluno = SpreadsheetApp.openById(idPlanilhaAluno);
+  const abaTreino = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
+
+  // Encontrar a próxima linha disponível (após o último bloco)
+  let ultimaLinha = abaTreino.getLastRow();
+  let proximaLinha = ultimaLinha + 2; // Espaço de 1 linha entre blocos (ajuste se necessário)
+
+  // Escrever o bloco de treino
+  abaTreino.getRange(proximaLinha, 1, dadosCentral.length, dadosCentral[0].length).setValues(dadosCentral);
+
+  limparCentralTreinos();
+  SpreadsheetApp.getUi().alert('Treino enviado com sucesso para o aluno!');
 }
 
 /**
@@ -138,7 +138,7 @@ function obterIdPlanilhaAluno(nomeAluno) {
   const abaCadastro = planilhaMae.getSheetByName(CONSTANTES.ABA_ALUNOS_CADASTRO);
   const dados = abaCadastro.getDataRange().getValues();
   for (let i = 1; i < dados.length; i++) {
-    if (dados[i][0] === nomeAluno) return dados[i][3]; // Ajuste o índice conforme a coluna do ID/URL
+    if (dados[i][0] === nomeAluno) return dados[i][7]; // Coluna H = índice 7
   }
   return null;
 }
@@ -147,25 +147,54 @@ function obterIdPlanilhaAluno(nomeAluno) {
 function lerUltimaSemanaAluno(idPlanilhaAluno) {
   const planilhaAluno = SpreadsheetApp.openById(idPlanilhaAluno);
   const abaTreino = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
-  // Supondo que cada semana é um bloco, pegue o último bloco preenchido
   const dados = abaTreino.getDataRange().getValues();
-  // Implemente a lógica para identificar a última semana
-  return dados; // Ajuste para retornar apenas a última semana
+
+  // Encontrar blocos de semana: cada "Segunda-Feira" marca o início de uma semana
+  let blocos = [];
+  let blocoAtual = [];
+  for (let i = 0; i < dados.length; i++) {
+    if (dados[i][0] && dados[i][0].toString().toLowerCase().includes('segunda')) {
+      if (blocoAtual.length > 0) blocos.push(blocoAtual);
+      blocoAtual = [dados[i]];
+    } else if (blocoAtual.length > 0) {
+      blocoAtual.push(dados[i]);
+    }
+  }
+  if (blocoAtual.length > 0) blocos.push(blocoAtual);
+
+  // Procurar o último bloco com pelo menos um exercício preenchido
+  for (let j = blocos.length - 1; j >= 0; j--) {
+    const bloco = blocos[j];
+    // Verifica se há pelo menos um exercício preenchido (ex: coluna Nome do Exercício não vazia)
+    if (bloco.some(linha => linha[1] && linha[1].toString().trim() !== '')) {
+      return bloco;
+    }
+  }
+  return [];
 }
 
-// Preenche a Central de Treinos com os dados lidos
+// Preenche a Central de Treinos com os dados lidas
 function preencherCentralTreinos(dadosSemana) {
+  if (!dadosSemana || dadosSemana.length === 0) return;
   const planilha = SpreadsheetApp.getActiveSpreadsheet();
   const aba = planilha.getSheetByName(CONSTANTES.ABA_CENTRAL_TREINOS);
-  // Implemente a lógica para preencher as células corretas
+
+  // Supondo que o layout da Central de Treinos é igual ao da planilha do aluno
+  // e começa a preencher a partir da mesma linha/célula
+  let linhaCentral = 6; // Exemplo: começa na linha 6 (ajuste conforme seu layout)
+  for (let i = 0; i < dadosSemana.length; i++) {
+    aba.getRange(linhaCentral + i, 1, 1, dadosSemana[i].length).setValues([dadosSemana[i]]);
+  }
 }
 
 // Lê os dados preenchidos na Central de Treinos
 function lerDadosCentralTreinos() {
   const planilha = SpreadsheetApp.getActiveSpreadsheet();
   const aba = planilha.getSheetByName(CONSTANTES.ABA_CENTRAL_TREINOS);
-  // Implemente a lógica para ler os dados dos exercícios da semana
-  return []; // Array de objetos/linhas
+  // Supondo que o bloco de treino começa na linha 6 e vai até a linha 35 (ajuste conforme seu layout)
+  const dados = aba.getRange(6, 1, 30, aba.getLastColumn()).getValues();
+  // Filtra linhas que têm pelo menos o nome do exercício preenchido (coluna 2)
+  return dados.filter(linha => linha[1] && linha[1].toString().trim() !== '');
 }
 
 // Lê os dados da semana atual na planilha do aluno
@@ -195,4 +224,11 @@ function registrarTreinoBrainer(aluno, dados) {
   const planilhaBrainer = SpreadsheetApp.openById(CONSTANTES.ID_PLANILHA_BRAINER);
   const abaLog = planilhaBrainer.getSheetByName(CONSTANTES.ABA_LOG_TREINOS_BRAINER);
   // Implemente a lógica para registrar o envio
+}
+
+// Limpa os dados da Central de Treinos
+function limparCentralTreinos() {
+  const planilha = SpreadsheetApp.getActiveSpreadsheet();
+  const aba = planilha.getSheetByName(CONSTANTES.ABA_CENTRAL_TREINOS);
+  aba.getRange(6, 1, 30, aba.getLastColumn()).clearContent(); // Ajuste linhas/colunas conforme seu layout
 }
