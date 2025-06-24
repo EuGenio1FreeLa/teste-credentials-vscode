@@ -69,27 +69,130 @@ function coletarFeedback() {
 
 
 /**
- * Carrega os dados da semana anterior (do Brainer) para a Central de Treinos.
+ * Carrega os dados da última semana do aluno selecionado e preenche a Central de Treinos.
  */
-function carregarSemanaAnterior() {
-    const ui = SpreadsheetApp.getUi();
-  try {
-    // Esta função será acionada por um botão na Central de Treinos
-    
-    // 1. Obter o aluno selecionado
-    // ...
-    
-    // 2. Calcular o intervalo de datas da semana anterior
-    // ...
-
-    // 3. Buscar no Brainer os registros "Realizados" para o aluno nesse período
-    // ...
-
-    // 4. Popular as colunas "...anterior" na Central de Treinos com os dados encontrados
-    // ...
-
-    ui.alert('Dados da semana anterior carregados!');
-  } catch(e) {
-    ui.alert('Ocorreu um erro ao carregar os dados:', e.message);
+function carregarSemana() {
+  const aluno = obterAlunoSelecionado();
+  if (!aluno) {
+    SpreadsheetApp.getUi().alert('Selecione um aluno.');
+    return;
   }
+  const idPlanilhaAluno = obterIdPlanilhaAluno(aluno);
+  if (!idPlanilhaAluno) {
+    SpreadsheetApp.getUi().alert('Planilha do aluno não encontrada.');
+    return;
+  }
+  const dadosUltimaSemana = lerUltimaSemanaAluno(idPlanilhaAluno);
+  preencherCentralTreinos(dadosUltimaSemana);
+}
+
+/**
+ * Envia o treino da Central de Treinos para a planilha do aluno e Brainer, com verificação de sobrescrição.
+ */
+function enviarTreino() {
+  const aluno = obterAlunoSelecionado();
+  if (!aluno) {
+    SpreadsheetApp.getUi().alert('Selecione um aluno.');
+    return;
+  }
+  const idPlanilhaAluno = obterIdPlanilhaAluno(aluno);
+  if (!idPlanilhaAluno) {
+    SpreadsheetApp.getUi().alert('Planilha do aluno não encontrada.');
+    return;
+  }
+  const dadosCentral = lerDadosCentralTreinos();
+  const dadosExistentes = lerSemanaAtualAluno(idPlanilhaAluno);
+
+  if (dadosExistentes && dadosExistentes.length > 0) {
+    const resposta = SpreadsheetApp.getUi().prompt(
+      'Já existem dados preenchidos pelo aluno nesta semana. O que deseja fazer?',
+      'Digite: MANTER para manter, APAGAR para sobrescrever, CANCELAR para cancelar.',
+      SpreadsheetApp.getUi().ButtonSet.OK_CANCEL
+    );
+    if (resposta.getSelectedButton() !== SpreadsheetApp.getUi().Button.OK) return;
+    const acao = resposta.getResponseText().toUpperCase();
+    if (acao === 'CANCELAR') return;
+    if (acao === 'APAGAR') apagarSemanaAtualAluno(idPlanilhaAluno);
+    // Se for manter, não faz nada, apenas adiciona novos registros.
+  }
+
+  escreverTreinoAluno(idPlanilhaAluno, dadosCentral);
+  registrarTreinoBrainer(aluno, dadosCentral);
+  SpreadsheetApp.getUi().alert('Treino enviado com sucesso!');
+}
+
+/**
+ * Utilitários e funções auxiliares
+ */
+
+// Obtém o nome do aluno selecionado no dropdown
+function obterAlunoSelecionado() {
+  const planilha = SpreadsheetApp.getActiveSpreadsheet();
+  const aba = planilha.getSheetByName(CONSTANTES.ABA_CENTRAL_TREINOS);
+  return aba.getRange('B2').getValue(); // Ajuste conforme a célula do dropdown
+}
+
+// Busca o ID da planilha do aluno no cadastro
+function obterIdPlanilhaAluno(nomeAluno) {
+  const planilhaMae = SpreadsheetApp.openById(CONSTANTES.ID_PLANILHA_MAE);
+  const abaCadastro = planilhaMae.getSheetByName(CONSTANTES.ABA_ALUNOS_CADASTRO);
+  const dados = abaCadastro.getDataRange().getValues();
+  for (let i = 1; i < dados.length; i++) {
+    if (dados[i][0] === nomeAluno) return dados[i][3]; // Ajuste o índice conforme a coluna do ID/URL
+  }
+  return null;
+}
+
+// Lê os dados da última semana do aluno
+function lerUltimaSemanaAluno(idPlanilhaAluno) {
+  const planilhaAluno = SpreadsheetApp.openById(idPlanilhaAluno);
+  const abaTreino = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
+  // Supondo que cada semana é um bloco, pegue o último bloco preenchido
+  const dados = abaTreino.getDataRange().getValues();
+  // Implemente a lógica para identificar a última semana
+  return dados; // Ajuste para retornar apenas a última semana
+}
+
+// Preenche a Central de Treinos com os dados lidos
+function preencherCentralTreinos(dadosSemana) {
+  const planilha = SpreadsheetApp.getActiveSpreadsheet();
+  const aba = planilha.getSheetByName(CONSTANTES.ABA_CENTRAL_TREINOS);
+  // Implemente a lógica para preencher as células corretas
+}
+
+// Lê os dados preenchidos na Central de Treinos
+function lerDadosCentralTreinos() {
+  const planilha = SpreadsheetApp.getActiveSpreadsheet();
+  const aba = planilha.getSheetByName(CONSTANTES.ABA_CENTRAL_TREINOS);
+  // Implemente a lógica para ler os dados dos exercícios da semana
+  return []; // Array de objetos/linhas
+}
+
+// Lê os dados da semana atual na planilha do aluno
+function lerSemanaAtualAluno(idPlanilhaAluno) {
+  const planilhaAluno = SpreadsheetApp.openById(idPlanilhaAluno);
+  const abaTreino = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
+  // Implemente a lógica para identificar a semana vigente
+  return []; // Array de objetos/linhas
+}
+
+// Apaga os dados da semana atual na planilha do aluno
+function apagarSemanaAtualAluno(idPlanilhaAluno) {
+  const planilhaAluno = SpreadsheetApp.openById(idPlanilhaAluno);
+  const abaTreino = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
+  // Implemente a lógica para apagar os dados da semana vigente
+}
+
+// Escreve os dados do treino na planilha do aluno
+function escreverTreinoAluno(idPlanilhaAluno, dados) {
+  const planilhaAluno = SpreadsheetApp.openById(idPlanilhaAluno);
+  const abaTreino = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
+  // Implemente a lógica para inserir os dados
+}
+
+// Registra o treino também na planilha Brainer
+function registrarTreinoBrainer(aluno, dados) {
+  const planilhaBrainer = SpreadsheetApp.openById(CONSTANTES.ID_PLANILHA_BRAINER);
+  const abaLog = planilhaBrainer.getSheetByName(CONSTANTES.ABA_LOG_TREINOS_BRAINER);
+  // Implemente a lógica para registrar o envio
 }

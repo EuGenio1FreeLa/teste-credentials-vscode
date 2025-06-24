@@ -1,7 +1,3 @@
-/**
- * @OnlyCurrentDoc
- */
-
 // =================================================================
 // ARQUIVO DE CONFIGURAÇÃO PRINCIPAL E MENU
 // =================================================================
@@ -62,7 +58,11 @@ const CONSTANTES = {
   ALUNO_ESCALA_DE_RPE:                'EscaladeRPE',
   ALUNO_RNG_ID_UNICO_TREINO:          'rng_id_unico_treino',
   ALUNO_RNG_TREINO_ID_EXERCICIO:      'rng_TreinoIDExercicio',
-  ALUNO_RNG_TREINO_SEMANAL_DADOS:     'rng_TreinoSemanalDados'
+  ALUNO_RNG_TREINO_SEMANAL_DADOS:     'rng_TreinoSemanalDados',
+
+  // --- Intervalos na Planilha Brainer ---
+  BRAINER_LOG_TREINOS:                'LogTreinos',
+  BRAINER_LOG_QUESTIONARIOS:          'LogQuestionarios'
 };
 // ------------------------------------------
 
@@ -87,4 +87,48 @@ function abrirFormularioCadastro() {
       .setWidth(450)
       .setHeight(580);
   SpreadsheetApp.getUi().showModalDialog(html, 'Formulário de Cadastro');
+}
+
+/**
+ * Avalia e exibe os cabeçalhos de todas as colunas das principais abas das planilhas usadas.
+ * O resultado aparece no Logger do Apps Script.
+ */
+function avaliarColunasDasPlanilhas() {
+  const planilhas = [
+    {
+      id: CONSTANTES.ID_PLANILHA_MAE,
+      nome: 'Planilha Mãe',
+      abas: [
+        CONSTANTES.ABA_ALUNOS_CADASTRO,
+        CONSTANTES.ABA_EXERCICIOS,
+        CONSTANTES.ABA_BD_ATIVACAO,
+        CONSTANTES.ABA_CENTRAL_TREINOS,
+        CONSTANTES.ABA_PAGAMENTOS,
+        CONSTANTES.ABA_LOG_ACOES
+      ]
+    },
+    {
+      id: CONSTANTES.ID_PLANILHA_BRAINER,
+      nome: 'Planilha Brainer',
+      abas: [
+        CONSTANTES.ABA_LOG_TREINOS_BRAINER,
+        CONSTANTES.ABA_LOG_QUESTIONARIOS_BRAINER
+      ]
+    }
+  ];
+
+  planilhas.forEach(planilhaInfo => {
+    const planilha = SpreadsheetApp.openById(planilhaInfo.id);
+    Logger.log(`\n=== ${planilhaInfo.nome} ===`);
+    planilhaInfo.abas.forEach(abaNome => {
+      const aba = planilha.getSheetByName(abaNome);
+      if (aba) {
+        const cabecalhos = aba.getRange(1, 1, 1, aba.getLastColumn()).getValues()[0];
+        Logger.log(`Aba: ${abaNome}`);
+        Logger.log(`Colunas: ${cabecalhos.join(' | ')}`);
+      } else {
+        Logger.log(`Aba não encontrada: ${abaNome}`);
+      }
+    });
+  });
 }
