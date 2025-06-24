@@ -1,0 +1,23 @@
+{
+  "name": "projetoappscript",
+  "version": "1.0.0",
+  "description": "YES! Conexão com o GitHub funcionando 100%!\r YES! Conexão com o GitHub funcionando 100%!\r Safadããão ^^ 2x tt",
+  "main": "Modulo_Treinos.test.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EuGenio1FreeLa/teste-credentials-vscode.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/EuGenio1FreeLa/teste-credentials-vscode/issues"
+  },
+  "homepage": "https://github.com/EuGenio1FreeLa/teste-credentials-vscode#readme",
+  "devDependencies": {
+    "jest": "^30.0.2"
+  }
+}
