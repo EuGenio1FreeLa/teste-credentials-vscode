@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: Arial, sans-serif; padding: 20px; background-color: #f9f9f9; }
+      h2 { color: #2c3e50; }
+      label { display: block; margin-top: 15px; font-weight: bold; color: #34495e; }
+      input, textarea { 
+        width: 100%; 
+        box-sizing: border-box; 
+        padding: 8px; 
+        margin-top: 5px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      .button-container { margin-top: 25px; text-align: right; }
+      button { 
+        padding: 10px 15px; 
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-left: 10px;
+      }
+      #submit-btn { background-color: #27ae60; color: white; }
+      #cancel-btn { background-color: #e74c3c; color: white; }
+    </style>
+    <script>
+      function onLoad() {
+        // Define a data de hoje como padrão no campo de data de início
+        document.getElementById('dataInicio').value = new Date().toISOString().slice(0,10);
+      }
+
+      function submitForm() {
+        // Desabilita o botão para evitar cliques duplos
+        document.getElementById('submit-btn').disabled = true;
+        document.getElementById('submit-btn').textContent = 'Processando...';
+
+        const dadosAluno = {
+          nomeCompleto: document.getElementById('nomeCompleto').value.trim(),
+          email:        document.getElementById('email').value.trim(),
+          whatsapp:     document.getElementById('whatsapp').value.trim(),
+          dataInicio:   document.getElementById('dataInicio').value,
+          objetivo:     document.getElementById('objetivo').value.trim(),
+          observacoes:  document.getElementById('observacoes').value.trim()
+        };
+
+        if (!dadosAluno.nomeCompleto || !dadosAluno.email || !dadosAluno.dataInicio) {
+          alert('Os campos Nome Completo, E-mail e Data de Início são obrigatórios.');
+          document.getElementById('submit-btn').disabled = false;
+          document.getElementById('submit-btn').textContent = 'Cadastrar Aluno';
+          return;
+        }
+        
+        // Chama a função do lado do servidor (Apps Script)
+        google.script.run
+          .withSuccessHandler(msg => {
+            alert(msg);
+            google.script.host.close();
+          })
+          .withFailureHandler(err => {
+            alert('Falha ao cadastrar: ' + err.message);
+            document.getElementById('submit-btn').disabled = false;
+            document.getElementById('submit-btn').textContent = 'Cadastrar Aluno';
+          })
+          .processarFormularioDeCadastro(dadosAluno);
+      }
+    </script>
+  </head>
+  <body onload="onLoad()">
+    <h2>Cadastrar Novo Aluno</h2>
+    
+    <label>Nome Completo:</label>
+    <input type="text" id="nomeCompleto">
+    
+    <label>E-mail:</label>
+    <input type="email" id="email">
+    
+    <label>Whatsapp:</label>
+    <input type="text" id="whatsapp">
+    
+    <label>Data de Início:</label>
+    <input type="date" id="dataInicio">
+    
+    <label>Objetivo:</label>
+    <input type="text" id="objetivo">
+    
+    <label>Observações:</label>
+    <textarea id="observacoes" rows="3"></textarea>
+    
+    <div class="button-container">
+      <button id="cancel-btn" type="button" onclick="google.script.host.close()">Cancelar</button>
+      <button id="submit-btn" type="button" onclick="submitForm()">Cadastrar Aluno</button>
+    </div>
+  </body>
+</html>
