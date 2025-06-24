@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
+      h2 { color: #2c3e50; }
+      label { display: block; margin-top: 15px; font-weight: bold; }
+      input, textarea, select {
+        width: 100%;
+        padding: 10px;
+        margin-top: 5px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      textarea { height: 100px; resize: vertical; }
+      button {
+        margin-top: 20px;
+        padding: 10px 20px;
+        background: #27ae60;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover { background: #2ecc71; }
+      .error { color: #e74c3c; margin-top: 10px; }
+      .success { color: #27ae60; margin-top: 10px; }
+    </style>
+  </head>
+  <body>
+    <h2>Feedback do Treino</h2>
+    <div id="feedback-form">
+      <label for="dificuldade">Nível de Dificuldade (1-10):</label>
+      <select id="dificuldade">
+        <option value="1">1 - Muito fácil</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5" selected>5 - Moderado</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+        <option value="10">10 - Extremamente difícil</option>
+      </select>
+      
+      <label for="comentarios">Comentários ou Observações:</label>
+      <textarea id="comentarios" placeholder="Conte como foi seu treino, dificuldades, sensações, etc..."></textarea>
+      
+      <div id="error-msg" class="error" style="display:none;"></div>
+      <div id="success-msg" class="success" style="display:none;"></div>
+      
+      <button onclick="enviarFeedback()">Enviar Feedback</button>
+    </div>
+    
+    <script>
+      // Pegar parâmetros da URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const idAluno = urlParams.get('aluno');
+      const idTreino = urlParams.get('treino');
+      
+      function enviarFeedback() {
+        const dificuldade = document.getElementById('dificuldade').value;
+        const comentario = document.getElementById('comentarios').value;
+        
+        if (!idAluno || !idTreino) {
+          mostrarErro('Identificação do treino inválida. Por favor, use o link correto.');
+          return;
+        }
+        
+        // Desabilitar botão para evitar múltiplos envios
+        const btnSubmit = document.querySelector('button');
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = 'Enviando...';
+        
+        const dadosFeedback = {
+          idAluno: idAluno,
+          idTreino: idTreino,
+          dificuldade: dificuldade,
+          comentario: comentario,
+          dataEnvio: new Date().toISOString()
+        };
+        
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result.success) {
+              mostrarSucesso('Feedback enviado com sucesso! Obrigado.');
+              document.getElementById('feedback-form').style.display = 'none';
+            } else {
+              mostrarErro('Erro ao enviar feedback: ' + result.message);
+              btnSubmit.disabled = false;
+              btnSubmit.innerHTML = 'Enviar Feedback';
+            }
+          })
+          .withFailureHandler(function(error) {
+            mostrarErro('Falha ao enviar feedback: ' + error.message);
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = 'Enviar Feedback';
+          })
+          .processarFeedback(dadosFeedback);
+      }
+      
+      function mostrarErro(msg) {
+        const errorEl = document.getElementById('error-msg');
+        errorEl.innerHTML = msg;
+        errorEl.style.display = 'block';
+        document.getElementById('success-msg').style.display = 'none';
+      }
+      
+      function mostrarSucesso(msg) {
+        const successEl = document.getElementById('success-msg');
+        successEl.innerHTML = msg;
+        successEl.style.display = 'block';
+        document.getElementById('error-msg').style.display = 'none';
+      }
+      
+      // Verificação inicial
+      window.onload = function() {
+        if (!idAluno || !idTreino) {
+          mostrarErro('Link de feedback inválido. Contate seu personal trainer.');
+          document.getElementById('feedback-form').style.display = 'none';
+        }
+      };
+    </script>
+  </body>
+</html>
