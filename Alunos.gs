@@ -16,6 +16,9 @@
  */
 function processarFormularioDeCadastro(formData) {
   try {
+    Logger.log('Iniciando cadastro de novo aluno: ' + formData.nomeCompleto);
+    
+    // Validar campos obrigatórios
     var camposObrigatorios = [
       { campo: 'nomeCompleto', label: 'Nome Completo' },
       { campo: 'email', label: 'E-mail' },
@@ -30,86 +33,176 @@ function processarFormularioDeCadastro(formData) {
       throw new Error('Os seguintes campos são obrigatórios e não foram preenchidos: ' +
         camposVazios.map(function(c) { return c.label; }).join(', '));
     }
+    
+    // Abrir a planilha mãe e a aba de alunos
     var planilhaMae = SpreadsheetApp.openById(CONSTANTES.ID_PLANILHA_MAE);
     var abaAlunos = planilhaMae.getSheetByName(CONSTANTES.ABA_ALUNOS_CADASTRO);
+    
+    if (!abaAlunos) {
+      throw new Error('Aba de cadastro de alunos não encontrada: ' + CONSTANTES.ABA_ALUNOS_CADASTRO);
+    }
+    
+    // Verificar se já existe aluno com o mesmo email
+    var dadosAlunos = abaAlunos.getDataRange().getValues();
+    var emailNormalizado = formData.email.toString().trim().toLowerCase();
+    
+    for (var i = 1; i < dadosAlunos.length; i++) {
+      var emailExistente = dadosAlunos[i][CONSTANTES.COL_EMAIL_ALUNO_CADASTRO];
+      if (emailExistente && emailExistente.toString().trim().toLowerCase() === emailNormalizado) {
+        // Se encontrou email igual de um aluno ativo, exibe erro
+        var statusAluno = dadosAlunos[i][CONSTANTES.COL_STATUS_ALUNO_CADASTRO];
+        if (statusAluno && statusAluno.toString().trim().toLowerCase() === 'ativo') {
+          throw new Error('Já existe um aluno ativo cadastrado com este e-mail.');
+        }
+      }
+    }
+    
+    // Gerar um novo ID para o aluno
     var novoId = gerarProximoIdAluno_();
+    Logger.log('Novo ID gerado para o aluno: ' + novoId);
+    
+    // Criar uma cópia do template para o novo aluno
     var template = DriveApp.getFileById(CONSTANTES.ID_TEMPLATE_ALUNO);
     var pastaDestino = DriveApp.getFolderById(CONSTANTES.ID_PASTA_ALUNOS_ATIVOS);
-    var novaPlanilha = template.makeCopy('[' + formData.nomeCompleto + '] - Plano de Treino', pastaDestino);
+    
+    // Incluir o ID do aluno no nome do arquivo para facilitar a identificação
+    var nomeArquivo = '[' + novoId + '] [' + formData.nomeCompleto + '] - Plano de Treino';
+    var novaPlanilha = template.makeCopy(nomeArquivo, pastaDestino);
+    
+    Logger.log('Nova planilha criada: ' + novaPlanilha.getName() + ' | ID: ' + novaPlanilha.getId());
+    
+    // Adicionar o aluno como editor da planilha
     novaPlanilha.addEditor(formData.email);
+    
+    // Compartilhar a planilha com o usuário do projeto
+    novaPlanilha.addEditor(Session.getEffectiveUser().getEmail());
+    
     var urlNovaPlanilha = novaPlanilha.getUrl();
+    Logger.log('URL da nova planilha: ' + urlNovaPlanilha);
+    
+    // Aplicar proteções necessárias na planilha do aluno
     protegerPlanilhaAluno_(novaPlanilha.getId());
+    
+    // Preparar os dados para o cadastro
     var dataInicio = new Date(formData.dataInicio + 'T12:00:00');
     var dataVencimento = new Date(dataInicio);
     dataVencimento.setDate(dataVencimento.getDate() + 30);
+    
+    // Obter o ID da planilha criada
+    var studentSheetId = novaPlanilha.getId();
+    
+    // Salvar o ID no ScriptProperties como fallback
+    PropertiesService.getScriptProperties().setProperty(
+      'student_' + emailNormalizado,
+      studentSheetId
+    );
+    
+    // Criar a linha com os dados do aluno para inserir na planilha de cadastro
     var novaLinha = [
-      novoId,
-      formData.nomeCompleto,
-      formData.email,
-      formData.whatsapp,
-      dataInicio,
-      'Ativo',
-      formData.objetivo,
-      novaPlanilha.getId(),
-      dataVencimento,
-      formData.observacoes
+      novoId,                 // ID do aluno
+      formData.nomeCompleto,  // Nome completo
+      formData.email,         // E-mail
+      formData.whatsapp,      // WhatsApp
+      dataInicio,             // Data de início
+      'Ativo',                // Status
+      formData.objetivo,      // Objetivo
+      studentSheetId,         // ID da planilha do aluno (importante para referência futura)
+      dataVencimento,         // Data de vencimento
+      formData.observacoes    // Observações
     ];
+    
+    // Adicionar os dados à planilha de cadastro
     abaAlunos.appendRow(novaLinha);
-    return 'Aluno ' + formData.nomeCompleto + ' cadastrado com sucesso!';
-  } catch (e) {
-    Logger.log('Error in processarFormularioDeCadastro:', e);
-    throw new Error('Erro em processarFormularioDeCadastro: Falha ao cadastrar aluno. Detalhe: ' + e.message);
-  }
-}
-
-/**
- * Aplica proteção na planilha do aluno, deixando apenas os intervalos nomeados de feedback editáveis.
- * @param {string} idPlanilha - A ID da planilha do aluno a ser protegida.
- * @throws {Error} Se ocorrer erro ao proteger a planilha.
- * @private
- */
-function protegerPlanilhaAluno_(idPlanilha) {
-  try {
-    var planilhaAluno = SpreadsheetApp.openById(idPlanilha);
-    var abaTreino = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
-    if (abaTreino) {
-      var protection = abaTreino.protect().setDescription('Estrutura do Treino');
-      protection.removeEditors(protection.getEditors());
-      protection.addEditor(Session.getEffectiveUser());
-      var todosIntervalosNomeados = planilhaAluno.getNamedRanges();
-      var rangesEditaveis = [];
-      for (var i = 0; i < todosIntervalosNomeados.length; i++) {
-        var intervalo = todosIntervalosNomeados[i];
-        if (intervalo.getName().toLowerCase().indexOf('feedback_') === 0) {
-          rangesEditaveis.push(intervalo.getRange());
+    Logger.log('Dados do aluno adicionados à planilha de cadastro');
+    
+    // Salvar também na planilha Brainer para suporte a recuperação
+    try {
+      var brainerSheet = SpreadsheetApp.openById(CONSTANTES.ID_PLANILHA_BRAINER).getActiveSheet();
+      var headers = brainerSheet.getDataRange().getValues()[0];
+      var idCol = headers.indexOf('SpreadsheetID') + 1;
+      
+      // Se a coluna não existe, adicione-a
+      if (idCol === 0) {
+        idCol = headers.length + 1;
+        brainerSheet.getRange(1, idCol).setValue('SpreadsheetID');
+        headers.push('SpreadsheetID');
+      }
+      
+      // Verificar se já existe uma linha para este aluno
+      var emailCol = headers.indexOf('Email') + 1;
+      var encontrado = false;
+      
+      if (emailCol > 0) {
+        var dadosBrainer = brainerSheet.getDataRange().getValues();
+        for (var i = 1; i < dadosBrainer.length; i++) {
+          if (dadosBrainer[i][emailCol-1] === emailNormalizado) {
+            brainerSheet.getRange(i+1, idCol).setValue(studentSheetId);
+            encontrado = true;
+            break;
+          }
         }
       }
-      if (rangesEditaveis.length > 0) {
-        protection.setUnprotectedRanges(rangesEditaveis);
+      
+      // Se não encontrou o aluno na planilha Brainer, adiciona uma nova linha
+      if (!encontrado) {
+        var novoBrainer = new Array(headers.length).fill("");
+        var emailIdx = headers.indexOf('Email');
+        var nomeIdx = headers.indexOf('Nome');
+        var idAlunoIdx = headers.indexOf('ID_Aluno');
+        var idSheetIdx = headers.indexOf('SpreadsheetID');
+        
+        if (emailIdx >= 0) novoBrainer[emailIdx] = emailNormalizado;
+        if (nomeIdx >= 0) novoBrainer[nomeIdx] = formData.nomeCompleto;
+        if (idAlunoIdx >= 0) novoBrainer[idAlunoIdx] = novoId;
+        if (idSheetIdx >= 0) novoBrainer[idSheetIdx] = studentSheetId;
+        
+        brainerSheet.appendRow(novoBrainer);
       }
+      
+      Logger.log('ID da planilha do aluno salvo na planilha Brainer: ' + studentSheetId);
+    } catch (err) {
+      Logger.log('Aviso: Não foi possível salvar o ID na planilha Brainer: ' + err.toString());
+      // Não interrompemos o processo se esta parte falhar
     }
-    var abasParaProtegerTotalmente = [
-      CONSTANTES.ABA_HISTORICO_ALUNO,
-      CONSTANTES.ABA_DADOS_ALUNO,
-      CONSTANTES.ABA_AUX_ALUNO
-    ];
-    abasParaProtegerTotalmente.forEach(function(nomeAba) {
-      var aba = planilhaAluno.getSheetByName(nomeAba);
-      if (aba) {
-        var protection = aba.protect().setDescription('Aba protegida');
-        protection.removeEditors(protection.getEditors());
-        protection.addEditor(Session.getEffectiveUser());
+    
+    // Atualizar também a planilha do aluno com alguns dados básicos
+    try {
+      var planilhaAlunoAberta = SpreadsheetApp.openById(studentSheetId);
+      var abaDadosAluno = planilhaAlunoAberta.getSheetByName(CONSTANTES.ABA_DADOS_ALUNO);
+      
+      if (abaDadosAluno) {
+        // Preencher os dados básicos na aba de dados do aluno
+        abaDadosAluno.getRange("B2").setValue(novoId);          // ID do aluno
+        abaDadosAluno.getRange("B3").setValue(formData.nomeCompleto); // Nome
+        abaDadosAluno.getRange("B4").setValue(formData.email);    // E-mail
+        abaDadosAluno.getRange("B5").setValue(formData.whatsapp); // WhatsApp
+        abaDadosAluno.getRange("B6").setValue(dataInicio);      // Data de início
+        abaDadosAluno.getRange("B7").setValue('Ativo');         // Status
+        abaDadosAluno.getRange("B8").setValue(formData.objetivo); // Objetivo
+        
+        Logger.log('Dados do aluno sincronizados com a planilha individual');
       }
-    });
+    } catch (err) {
+      Logger.log('Aviso: Não foi possível atualizar a aba de dados da planilha do aluno: ' + err.toString());
+      // Não interrompemos o processo se esta parte falhar
+    }
+    
+    // [NEW] Logging do ID salvo para debug
+    Logger.log('Saved SpreadsheetID for ' + emailNormalizado + ': ' + studentSheetId);
+    
+    return 'Aluno ' + formData.nomeCompleto + ' cadastrado com sucesso!\nID: ' + novoId + '\n\nLink da planilha: ' + urlNovaPlanilha;
   } catch (e) {
-    Logger.log('Error in protegerPlanilhaAluno_:', e);
-    throw new Error('Erro em protegerPlanilhaAluno_: Falha ao proteger planilha do aluno. Detalhe: ' + e.message);
+    Logger.log('Erro em processarFormularioDeCadastro:', e);
+    throw new Error('Falha ao cadastrar aluno. Detalhe: ' + e.message);
   }
 }
 
 /**
- * Gera um ID de aluno sequencial e único.
- * @returns {string} O novo ID de aluno.
+ * Gera um novo ID para o aluno.
+ * A função verifica o maior ID existente na planilha de alunos e gera um novo ID sequencial.
+ * O ID é formatado no padrão ALxxxx, onde xxxx é um número sequencial.
+ * A função também armazena o último ID gerado nas propriedades do script para referência futura.
+ * @returns {string} O novo ID gerado para o aluno.
  * @throws {Error} Se ocorrer erro ao gerar o ID.
  * @private
  */
@@ -118,14 +211,55 @@ function gerarProximoIdAluno_() {
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
+    // Primeiro verificamos o maior ID na planilha para garantir que não haja duplicação
+    var planilhaMae = SpreadsheetApp.openById(CONSTANTES.ID_PLANILHA_MAE);
+    var abaAlunos = planilhaMae.getSheetByName(CONSTANTES.ABA_ALUNOS_CADASTRO);
+    var range = abaAlunos.getRange("A:A"); // Coluna dos IDs
+    var values = range.getValues();
+    
+    // Variável para armazenar o maior número encontrado
+    var maiorNumero = 0;
+    
+    // Expressão regular para extrair o número do ID (AL0001 -> 1)
+    var regex = /AL0*(\d+)/i;
+    
+    // Procura pelo maior número nos IDs existentes
+    for (var i = 1; i < values.length; i++) { // Começamos de 1 para pular o cabeçalho
+      var id = values[i][0];
+      if (id && typeof id === 'string') {
+        var match = id.toString().match(regex);
+        if (match && match[1]) {
+          var numero = parseInt(match[1]);
+          if (numero > maiorNumero) {
+            maiorNumero = numero;
+          }
+        }
+      }
+    }
+    
+    Logger.log('Maior número de ID encontrado na planilha: ' + maiorNumero);
+    
+    // Agora verificamos o valor armazenado nas propriedades do script
     var ultimoId = parseInt(scriptProperties.getProperty('ULTIMO_ID_ALUNO') || '0');
+    Logger.log('Último ID armazenado nas propriedades: ' + ultimoId);
+    
+    // Usamos o maior valor entre o armazenado e o encontrado na planilha
+    ultimoId = Math.max(ultimoId, maiorNumero);
+    
+    // Incrementamos para o próximo ID
     ultimoId++;
+    
+    // Atualizamos o valor nas propriedades do script
     scriptProperties.setProperty('ULTIMO_ID_ALUNO', ultimoId.toString());
-    var idFormatado = 'AL' + ultimoId.toString().padStart(3, '0');
+    
+    // Formatamos o ID com o padrão ALxxxx (com zeros à esquerda)
+    var idFormatado = 'AL' + ultimoId.toString().padStart(4, '0');
+    
+    Logger.log('Novo ID gerado: ' + idFormatado);
     return idFormatado;
   } catch (e) {
-    Logger.log('Error in gerarProximoIdAluno_:', e);
-    throw new Error('Erro em gerarProximoIdAluno_: Falha ao gerar novo ID. Detalhe: ' + e.message);
+    Logger.log('Erro em gerarProximoIdAluno_:', e);
+    throw new Error('Falha ao gerar novo ID. Detalhe: ' + e.message);
   } finally {
     lock.releaseLock();
   }

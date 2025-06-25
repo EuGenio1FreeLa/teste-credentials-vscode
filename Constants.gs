@@ -71,9 +71,17 @@ var CONSTANTES = {
   COL_NOME_EXERCICIO_ALUNO: 3,
   
   // Cadastro de Alunos
+  COL_ID_ALUNO_CADASTRO: 0,
   COL_NOME_ALUNO_CADASTRO: 1,
+  COL_EMAIL_ALUNO_CADASTRO: 2,
+  COL_WHATSAPP_ALUNO_CADASTRO: 3,
+  COL_DATA_INICIO_CADASTRO: 4,
+  COL_STATUS_ALUNO_CADASTRO: 5,
+  COL_OBJETIVO_ALUNO_CADASTRO: 6,
   COL_ID_PLANILHA_ALUNO_CADASTRO: 7,
-  
+  COL_DATA_VENCIMENTO_CADASTRO: 8,
+  COL_OBSERVACOES_ALUNO_CADASTRO: 9,
+
   // Planilha Brainer
   COL_NOME_ALUNO_BRAINER: 1,
   COL_TIPO_ATIVIDADE_BRAINER: 3,
@@ -89,7 +97,64 @@ var CONSTANTES = {
   NUM_LINHAS_TREINO_CENTRAL: 20,
   LINHA_INICIO_TREINO_ALUNO: 3,
   NUM_LINHAS_TREINO_ALUNO: 30,
-  
-  // Colunas de feedback e realizado
+    // Colunas de feedback e realizado
   COLUNAS_REALIZADO_FEEDBACK: [8, 9, 10, 11, 12] // índices das colunas de feedback
+};
+
+// =============================
+// CONSTANTS FOR TREINO SEMANAL IMPLEMENTATION
+// =============================
+
+// Centralized field definitions for treino_semanal
+const FIELDS = [
+  'ID_Registro_Unico',
+  'ID_Treino_Sessao', 
+  'ID_Aluno',
+  'Nome_Aluno',
+  'Data_Evento',
+  'Tipo_Registro',
+  'Dia_Semana',
+  'objetivo_sessao',
+  'Ordem_Exercicio',
+  'Tipo_Atividade',
+  'ID_Exercicio',
+  'Nome_Exercicio',
+  'Instrucao_Progressao',
+  'Warm_up',
+  'RiR',
+  'Tecnica_para_Ultima_Serie',
+  'Intervalo',
+  'Series_Prescritas',
+  'Repeticoes_prescrita',
+  'Carga_prescrita',
+  'Observacoes_personal',
+  'Feedback_aluno',
+  'Repeticoes_realizada',
+  'Carga_realizada',
+  'Warm_up_realizado',
+  'RiR_realizado',
+  'Tecnica_para_Ultima_Serie_realizado',
+  'Intervalo_realizado'
+];
+
+// Sheet names
+const SHEETS = {
+  CENTRAL: 'Central de Treinos',
+  WEEKLY: 'treino_semanal',
+  CONFIG: 'config',
+  ALUNOS_CADASTRO: 'Alunos_cadastro',
+  LOG: 'log_treinos'
+};
+
+// Spreadsheet IDs
+const IDS = {
+  BRAINER: CONSTANTES.ID_PLANILHA_BRAINER,
+  MASTER: CONSTANTES.ID_PLANILHA_MAE
+};
+
+// Configuration constants
+const CONFIG = {
+  BLOCK_HEIGHT: 14,
+  EXERCISE_ROWS: 11,
+  DAYS: ['Segunda-Feira', 'Terça-Feira', 'Quarta-Feira', 'Quinta-Feira', 'Sexta-Feira', 'Sábado', 'Domingo']
 };

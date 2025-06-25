@@ -1,15 +1,15 @@
 # 🔥 Sistema de Personal Trainer - Google Apps Script
 
-Sistema completo para gestão de treinos de personal trainer usando Google Sheets e Apps Script.
+Sistema completo e unificado para gestão de treinos de personal trainer usando Google Sheets e Apps Script.
 
 ## 🚀 Funcionalidades
 
-- **Cadastro de Alunos**: Interface HTML para cadastrar novos alunos
-- **Envio de Treinos**: Sistema para enviar treinos semanais para os alunos
-- **Coleta de Feedback**: Coleta feedback dos treinos realizados pelos alunos
-- **Histórico de Treinos**: Mantém histórico completo na planilha Brainer
-- **Proteção de Dados**: Sistema de proteção automática das planilhas dos alunos
-- **Jest-based unit testing**: Testes automatizados para as funcionalidades
+- **📤 Envio de Treinos**: Sistema unificado para enviar treinos semanais
+- **📥 Coleta de Feedback**: Coleta feedback dos treinos realizados pelos alunos
+- **🔄 Carregar Último Treino**: Carrega treinos anteriores do histórico
+- **➡️ Cadastro de Alunos**: Interface HTML para cadastrar novos alunos
+- **🔍 Diagnóstico**: Verificação automática da configuração do sistema
+- **🧹 Limpeza**: Ferramentas para manter o sistema organizado
 
 ## 📁 Estrutura do Projeto
 

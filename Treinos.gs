@@ -3,484 +3,422 @@
 // =============================
 
 /**
- * Função principal para enviar o treino semanal do aluno.
- * - Usa constantes para nomes de abas e IDs.
- * - Remove/aplica proteção.
- * - Limpa conteúdo antigo.
- * - Registra cada exercício no log.
- * - Verifica sobrescrita de dados do aluno.
- * - Usa funções auxiliares.
+ * Valida entradas obrigatórias.
+ * @param {Object} inputs - { key: { value, message } }
  */
-function enviarTreinoSemanal() {
-  var ui = SpreadsheetApp.getUi();
+function validateInputs(inputs) {
+  Object.entries(inputs).forEach(([key, { value, message }]) => {
+    // Verificar se o valor existe e não está vazio
+    if (!value || value.toString().trim() === '' || 
+        value.toString().includes('Selecione') || 
+        value.toString().includes('undefined') ||
+        value === null || value === undefined) {
+      throw new Error(message);
+    }
+  });
+}
+
+/**
+ * Busca a primeira linha de um marcador na coluna.
+ * @param {string} marker
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @param {number} col
+ * @param {number} maxRows
+ * @returns {number} linha (1-based)
+ */
+function findFirstRow(marker, sheet, col = 1, maxRows = 50) {
+  const data = sheet.getRange(1, col, maxRows, 1).getValues();
+  for (let i = 0; i < data.length; i++) {
+    if (data[i][0] && data[i][0].toString().trim() === marker) return i + 1;
+  }
+  throw new Error(`Marcador "${marker}" não encontrado na coluna ${col}.`);
+}
+
+/**
+ * Extrai todos os exercícios da Central de Treinos em lote.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @param {number} firstRow
+ * @param {number} blockHeight
+ * @param {string[]} days
+ * @param {number} lastColumn
+ * @param {Date} mondayDate
+ * @param {string} studentId
+ * @param {string} studentName
+ * @param {string[]} fields
+ * @returns {Object[]} records
+ */
+function extractExercises(sheet, firstRow, blockHeight, days, lastColumn, mondayDate, studentId, studentName, fields) {
+  const allData = sheet.getRange(firstRow, 1, blockHeight * days.length, lastColumn).getValues();
+  const records = [];
+  const sessionId = Utilities.getUuid();
+  
+  days.forEach((day, i) => {
+    const offset = i * blockHeight;
+    const objective = allData[1 + offset][1]; // linha objetivo, coluna B (2)
+    let ordem = 1;
+    
+    for (let r = 3; r < 3 + CONFIG.EXERCISE_ROWS; r++) {
+      const row = allData[offset + r];
+      const [
+        typeActivity, nameExercise, warmUp, rir,
+        technique, interval, series, prevReps,
+        reps, prevLoad, currLoad, flagIncrease,
+        observations
+      ] = row;
+      
+      if (!typeActivity) continue;
+      
+      const record = {
+        ID_Registro_Unico: Utilities.getUuid(),
+        ID_Treino_Sessao: sessionId,
+        ID_Aluno: studentId,
+        Nome_Aluno: studentName,
+        Data_Evento: new Date(mondayDate.getTime() + i * 24 * 60 * 60 * 1000),
+        Tipo_Registro: 'treino_semanal',
+        Dia_Semana: day,
+        objetivo_sessao: objective || '',
+        Ordem_Exercicio: ordem++,
+        Tipo_Atividade: typeActivity || '',
+        ID_Exercicio: '',
+        Nome_Exercicio: nameExercise || '',
+        Instrucao_Progressao: '',
+        Warm_up: warmUp || '',
+        RiR: rir || '',
+        Tecnica_para_Ultima_Serie: technique || '',
+        Intervalo: interval || '',
+        Series_Prescritas: series || '',
+        Repeticoes_prescrita: reps || '',
+        Carga_prescrita: currLoad || '',
+        Observacoes_personal: observations || '',
+        Feedback_aluno: '',
+        Repeticoes_realizada: '',
+        Carga_realizada: '',
+        Warm_up_realizado: '',
+        RiR_realizado: '',
+        Tecnica_para_Ultima_Serie_realizado: '',
+        Intervalo_realizado: ''
+      };
+      records.push(record);
+    }
+  });
+  
+  if (records.length === 0) throw new Error('Preencha pelo menos um exercício na Central de Treinos.');
+  return records;
+}
+
+/**
+ * Busca o ID da planilha do aluno no cadastro ou config Brainer.
+ * @param {string} studentId
+ * @param {string} studentName
+ * @returns {string} spreadsheetId
+ */
+function getStudentSpreadsheetId(studentId, studentName) {
+  Logger.log('Buscando planilha para: ID=' + studentId + ', Nome=' + studentName);
+  
+  // 1. Cadastro principal
+  const master = SpreadsheetApp.openById(IDS.MASTER);
+  const sheet = master.getSheetByName(SHEETS.ALUNOS_CADASTRO);
+  const data = sheet.getDataRange().getValues();
+  
+  // Buscar pelas colunas das constantes
+  const nameCol = CONSTANTES.COL_NOME_ALUNO_CADASTRO;
+  const idCol = CONSTANTES.COL_ID_ALUNO_CADASTRO;
+  const sheetIdCol = CONSTANTES.COL_ID_PLANILHA_ALUNO_CADASTRO;
+  
+  Logger.log('Procurando nas colunas: ID=' + idCol + ', Nome=' + nameCol + ', SheetID=' + sheetIdCol);
+  
+  for (let i = 1; i < data.length; i++) {
+    const rowId = data[i][idCol] ? data[i][idCol].toString().trim() : '';
+    const rowName = data[i][nameCol] ? data[i][nameCol].toString().trim() : '';
+    const rowSheetId = data[i][sheetIdCol] ? data[i][sheetIdCol].toString().trim() : '';
+    
+    Logger.log('Linha ' + i + ': ID=' + rowId + ', Nome=' + rowName + ', SheetID=' + rowSheetId);
+    
+    // Buscar por ID primeiro (mais confiável)
+    if (rowId && studentId && rowId.toLowerCase() === studentId.toString().toLowerCase()) {
+      if (rowSheetId) {
+        Logger.log('Planilha encontrada por ID: ' + rowSheetId);
+        return rowSheetId;
+      }
+    }
+    
+    // Buscar por nome se não encontrou por ID
+    if (rowName && studentName && rowName.toLowerCase() === studentName.toString().toLowerCase()) {
+      if (rowSheetId) {
+        Logger.log('Planilha encontrada por Nome: ' + rowSheetId);
+        return rowSheetId;
+      }
+    }
+  }
+  
+  // 2. Config Brainer como fallback
   try {
-    // 1. Obter aluno selecionado e validar
-    var aluno = obterAlunoSelecionado();
-    if (!aluno) {
-      showAlert('Selecione um aluno.');
-      return;
-    }
-    var idPlanilhaAluno = obterIdPlanilhaAluno(aluno);
-    if (!idPlanilhaAluno) {
-      showAlert('Planilha do aluno não encontrada.');
-      return;
-    }
-    // 2. Obter dados da Central de Treinos
-    var dadosCentral = lerDadosCentralTreinos();
-    if (!dadosCentral || dadosCentral.length === 0) {
-      showAlert('Preencha o treino na Central de Treinos antes de enviar.');
-      return;
-    }
-    // Geração de IDs únicos e preenchimento dos campos obrigatórios
-    var timestampSessao = new Date().getTime();
-    dadosCentral = dadosCentral.map(function(linha, idx) {
-      var idRegistro = timestampSessao + '_' + (idx + 1);
-      // Preencher campos obrigatórios conforme padrão do projeto
-      linha[CONSTANTES.COL_ID_REGISTRO_UNICO] = idRegistro;
-      linha[CONSTANTES.COL_ID_TREINO_SESSAO] = timestampSessao;
-      linha[CONSTANTES.COL_TIPO_REGISTRO] = "Prescrito";
-      // Limpar campos de realizado/feedback
-      if (Array.isArray(CONSTANTES.COLUNAS_REALIZADO_FEEDBACK)) {
-        for (var i = 0; i < CONSTANTES.COLUNAS_REALIZADO_FEEDBACK.length; i++) {
-          var col = CONSTANTES.COLUNAS_REALIZADO_FEEDBACK[i];
-          linha[col] = "";
+    const brainer = SpreadsheetApp.openById(IDS.BRAINER);
+    const config = brainer.getSheetByName(SHEETS.CONFIG);
+    if (config) {
+      const cdata = config.getDataRange().getValues();
+      const cnameCol = cdata[0].indexOf('Nome');
+      const cidCol = cdata[0].indexOf('ID');
+      const csheetIdCol = cdata[0].indexOf('SpreadsheetID');
+      
+      for (let i = 1; i < cdata.length; i++) {
+        if ((cidCol !== -1 && cdata[i][cidCol] === studentId) ||
+            (cnameCol !== -1 && cdata[i][cnameCol] === studentName)) {
+          if (csheetIdCol !== -1 && cdata[i][csheetIdCol]) return cdata[i][csheetIdCol];
         }
       }
-      return linha;
-    });
-    // 3. Abrir planilha do aluno e da planilha de log
-    var planilhaAluno = SpreadsheetApp.openById(idPlanilhaAluno);
-    var abaTreinoAluno = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
-    var planilhaMae = SpreadsheetApp.getActiveSpreadsheet();
-    var abaCentral = planilhaMae.getSheetByName(CONSTANTES.ABA_CENTRAL_TREINOS);
-    var abaLog = planilhaMae.getSheetByName(CONSTANTES.ABA_LOG_ACOES);
-
-    // 4. Proteção: remover temporariamente
-    var protecaoAluno, protecaoLog;
-    try {
-      protecaoAluno = abaTreinoAluno.getProtections(SpreadsheetApp.ProtectionType.SHEET)[0];
-      if (protecaoAluno) protecaoAluno.remove();
-      protecaoLog = abaLog.getProtections(SpreadsheetApp.ProtectionType.SHEET)[0];
-      if (protecaoLog) protecaoLog.remove();
-    } catch (e) {}
-
-    // 5. Verificar se já existem dados preenchidos pelo aluno
-    var dadosAluno = lerSemanaAtualAluno(idPlanilhaAluno);
-    var sobrescrever = true;
-    if (dadosAluno && dadosAluno.length > 0) {
-      var resposta = ui.alert(
-        'Dados já preenchidos',
-        'Já existem dados preenchidos na semana atual do aluno. Deseja sobrescrever?\n\nClique em "Sim" para sobrescrever, "Não" para cancelar.',
-        ui.ButtonSet.YES_NO
-      );
-      if (resposta !== ui.Button.YES) {
-        showAlert('Envio de treino cancelado.');
-        return;
-      }
-      apagarSemanaAtualAluno(idPlanilhaAluno);
     }
-
-    // 6. Escrever treino na planilha do aluno
-    escreverTreinoAluno(idPlanilhaAluno, dadosCentral);
-
-    // 7. Registrar treino no log
-    registrarTreinoBrainer(aluno, dadosCentral);
-
-    // 8. Limpar Central de Treinos
-    limparCentralTreinos();
-
-    showAlert('Treino enviado com sucesso!');
   } catch (e) {
-    Logger.log('Error in enviarTreinoSemanal:', e);
-    SpreadsheetApp.getUi().alert('Erro ao enviar treino: ' + e.message);
-  } finally {
-    // Reaplicar proteções
-    try {
-      var planilhaAluno = SpreadsheetApp.openById(obterIdPlanilhaAluno(obterAlunoSelecionado()));
-      var abaTreinoAluno = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
-      if (abaTreinoAluno && !abaTreinoAluno.getProtections(SpreadsheetApp.ProtectionType.SHEET).length) {
-        var prot = abaTreinoAluno.protect();
-        prot.setWarningOnly(false);
-      }
-      var planilhaMae = SpreadsheetApp.getActiveSpreadsheet();
-      var abaLog = planilhaMae.getSheetByName(CONSTANTES.ABA_LOG_ACOES);
-      if (abaLog && !abaLog.getProtections(SpreadsheetApp.ProtectionType.SHEET).length) {
-        var prot = abaLog.protect();
-        prot.setWarningOnly(false);
-      }
-    } catch (e) {}
+    Logger.log('Erro ao buscar no Brainer: ' + e.message);
   }
+  
+  throw new Error('Planilha do aluno não encontrada no cadastro. Verifique se o aluno ' + studentName + ' (ID: ' + studentId + ') está corretamente cadastrado com uma planilha associada.');
+}
+
+/**
+ * Limpa e escreve os registros na sheet destino.
+ * @param {string} sheetId
+ * @param {string} sheetName
+ * @param {Object[]} records
+ * @param {string[]} fields
+ */
+function writeSheet(sheetId, sheetName, records, fields) {
+  const ss = SpreadsheetApp.openById(sheetId);
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) throw new Error(`Aba "${sheetName}" não encontrada na planilha ${sheetId}`);
+  
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+  
+  const values = records.map(r => fields.map(f => r[f]));
+  if (sheet.getLastColumn() !== fields.length) throw new Error('Número de colunas dos dados não bate com a planilha.');
+  
+  if (values.length > 0) sheet.getRange(2, 1, values.length, values[0].length).setValues(values);
+}
+
+/**
+ * Função principal: envia o treino semanal do aluno.
+ */
+function sendWeeklyWorkout() {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const sheet = ss.getSheetByName(SHEETS.CENTRAL);
+    
+    if (!sheet) {
+      throw new Error('Aba "Central de Treinos" não encontrada. Verifique se você está na planilha correta.');
+    }
+    
+    const studentId = sheet.getRange('A1').getValue();
+    const studentName = sheet.getRange('B1').getValue();
+    const mondayDate = sheet.getRange('B2').getValue();
+    
+    Logger.log('DEBUG - Valores capturados:');
+    Logger.log('- studentId (A1):', studentId);
+    Logger.log('- studentName (B1):', studentName);
+    Logger.log('- mondayDate (B2):', mondayDate);
+
+    validateInputs({
+      studentId: { value: studentId, message: 'Preencha corretamente o ID do aluno na célula A1 da aba "Central de Treinos".' },
+      studentName: { value: studentName, message: 'Preencha corretamente o nome do aluno na célula B1 da aba "Central de Treinos".' },
+      mondayDate: { value: mondayDate, message: 'Preencha a data de início da semana na célula B2 da aba "Central de Treinos".' }
+    });
+
+    const firstRow = findFirstRow('Objetivo do Dia', sheet);
+    const records = extractExercises(sheet, firstRow, CONFIG.BLOCK_HEIGHT, CONFIG.DAYS, sheet.getLastColumn(), mondayDate, studentId, studentName, FIELDS);
+    const studentSheetId = getStudentSpreadsheetId(studentId, studentName);
+
+    writeSheet(studentSheetId, SHEETS.WEEKLY, records, FIELDS);
+    writeSheet(IDS.BRAINER, SHEETS.LOG, records, FIELDS);
+
+    Logger.log('Treino semanal enviado com sucesso!');
+    SpreadsheetApp.getUi().alert('Sucesso', 'Treino enviado com sucesso para ' + studentName + '!', SpreadsheetApp.getUi().ButtonSet.OK);
+    return true;
+  } catch (e) {
+    Logger.log('Erro em sendWeeklyWorkout: ' + e.message);
+    SpreadsheetApp.getUi().alert('Erro', 'Erro ao enviar treino: ' + e.message, SpreadsheetApp.getUi().ButtonSet.OK);
+    throw e;
+  }
+}
+
+/**
+ * Função principal unificada para enviar treino semanal
+ * Esta é a única função necessária para envio de treinos
+ */
+function enviarTreino() {
+  return sendWeeklyWorkout();
 }
 
 /**
  * Coleta o feedback preenchido pelo aluno e atualiza o Brainer.
  */
 function coletarFeedback() {
-  var ui = SpreadsheetApp.getUi();
+  const ui = SpreadsheetApp.getUi();
   try {
-    // 1. Obter aluno selecionado e validar
-    var aluno = obterAlunoSelecionado();
-    if (!aluno) {
-      showAlert('Selecione um aluno.');
-      return;
+    // 1. Obter dados da Central de Treinos
+    const ss = SpreadsheetApp.getActive();
+    const centralSheet = ss.getSheetByName(SHEETS.CENTRAL);
+    
+    if (!centralSheet) {
+      throw new Error('Aba "Central de Treinos" não encontrada.');
     }
-    var idPlanilhaAluno = obterIdPlanilhaAluno(aluno);
-    if (!idPlanilhaAluno) {
-      showAlert('Planilha do aluno não encontrada.');
-      return;
+    
+    const studentId = centralSheet.getRange('A1').getValue();
+    const studentName = centralSheet.getRange('B1').getValue();
+    
+    if (!studentId || !studentName) {
+      throw new Error('Preencha o ID e nome do aluno na Central de Treinos.');
     }
-    // 2. Ler todos os dados da aba de treino do aluno
-    var planilhaAluno = SpreadsheetApp.openById(idPlanilhaAluno);
-    var abaTreinoAluno = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
-    var dadosAluno = abaTreinoAluno.getDataRange().getValues();
+    
+    // 2. Buscar planilha do aluno
+    const studentSheetId = getStudentSpreadsheetId(studentId, studentName);
+    const planilhaAluno = SpreadsheetApp.openById(studentSheetId);
+    const abaTreinoAluno = planilhaAluno.getSheetByName(SHEETS.WEEKLY);
+    
+    if (!abaTreinoAluno) {
+      throw new Error('Aba de treino não encontrada na planilha do aluno.');
+    }
+    
+    const dadosAluno = abaTreinoAluno.getDataRange().getValues();
 
-    // 3. Abrir a planilha Brainer (log global)
-    var planilhaBrainer = SpreadsheetApp.openById(CONSTANTES.ID_PLANILHA_BRAINER);
-    var abaLogBrainer = planilhaBrainer.getSheetByName(CONSTANTES.ABA_LOG_TREINOS_BRAINER);
-    var dadosBrainer = abaLogBrainer.getDataRange().getValues();
+    // 3. Abrir a planilha Brainer
+    const planilhaBrainer = SpreadsheetApp.openById(IDS.BRAINER);
+    const abaLogBrainer = planilhaBrainer.getSheetByName(SHEETS.LOG);
+    const dadosBrainer = abaLogBrainer.getDataRange().getValues();
 
     // 4. Atualizar registros no Brainer com base no ID_Registro_Unico
-    var atualizados = 0;
-    for (var i = 1; i < dadosAluno.length; i++) {
-      var linhaAluno = dadosAluno[i];
-      var idRegistro = linhaAluno[CONSTANTES.COL_ID_REGISTRO_UNICO];
+    let atualizados = 0;
+    for (let i = 1; i < dadosAluno.length; i++) {
+      const linhaAluno = dadosAluno[i];
+      const idRegistro = linhaAluno[0]; // ID_Registro_Unico na primeira coluna
+      
       if (!idRegistro) continue;
-      for (var j = 1; j < dadosBrainer.length; j++) {
-        if (dadosBrainer[j][CONSTANTES.COL_ID_REGISTRO_UNICO] === idRegistro) {
-          // Atualizar campos de realizado e feedback
-          for (var k = 0; k < CONSTANTES.COLUNAS_REALIZADO_FEEDBACK.length; k++) {
-            var idx = CONSTANTES.COLUNAS_REALIZADO_FEEDBACK[k];
-            dadosBrainer[j][idx] = linhaAluno[idx];
+      
+      for (let j = 1; j < dadosBrainer.length; j++) {
+        if (dadosBrainer[j][0] === idRegistro) {
+          // Atualizar campos de feedback e realizado (colunas 21-27)
+          for (let k = 21; k <= 27; k++) {
+            if (linhaAluno[k]) {
+              dadosBrainer[j][k] = linhaAluno[k];
+            }
           }
           // Tipo_Registro = "Realizado"
-          dadosBrainer[j][CONSTANTES.COL_TIPO_REGISTRO] = "Realizado";
+          dadosBrainer[j][5] = "Realizado";
           atualizados++;
           break;
         }
       }
     }
+    
     // 5. Escrever de volta na planilha Brainer
     if (atualizados > 0) {
       abaLogBrainer.getRange(1, 1, dadosBrainer.length, dadosBrainer[0].length).setValues(dadosBrainer);
+      ui.alert('Sucesso', `Feedback coletado com sucesso! ${atualizados} registros atualizados.`, ui.ButtonSet.OK);
+    } else {
+      ui.alert('Aviso', 'Nenhum feedback novo encontrado para atualizar.', ui.ButtonSet.OK);
     }
-    showAlert('Feedback coletado e arquivado com sucesso!');
+    
   } catch (e) {
-    Logger.log('Error in coletarFeedback:', e);
-    SpreadsheetApp.getUi().alert('Erro ao coletar feedback: ' + e.message);
+    Logger.log('Erro em coletarFeedback:', e.message);
+    ui.alert('Erro', 'Erro ao coletar feedback: ' + e.message, ui.ButtonSet.OK);
   }
 }
 
 /**
- * Obtém o nome do aluno selecionado no dropdown da Central de Treinos.
- */
-function obterAlunoSelecionado() {
-  try {
-    var planilha = SpreadsheetApp.getActiveSpreadsheet();
-    var aba = planilha.getSheetByName(CONSTANTES.ABA_CENTRAL_TREINOS);
-    
-    if (!aba) {
-      Logger.log('Aba Central de Treinos não encontrada: ' + CONSTANTES.ABA_CENTRAL_TREINOS);
-      return null;
-    }
-    
-    var valorCelula = aba.getRange(CONSTANTES.CELULA_DROPDOWN_ALUNO).getValue();
-    Logger.log('Valor na célula dropdown (' + CONSTANTES.CELULA_DROPDOWN_ALUNO + '): ' + valorCelula);
-    
-    return valorCelula;
-  } catch (e) {
-    Logger.log('Erro ao obter aluno selecionado: ' + e.message);
-    return null;
-  }
-}
-
-/**
- * Busca o ID da planilha do aluno no cadastro.
- * CORREÇÃO: Agora usa a planilha mãe diretamente via ID ao invés de getActiveSpreadsheet
- */
-function obterIdPlanilhaAluno(nomeAluno) {
-  try {
-    var planilhaMae = SpreadsheetApp.openById(CONSTANTES.ID_PLANILHA_MAE);
-    var abaCadastro = planilhaMae.getSheetByName(CONSTANTES.ABA_ALUNOS_CADASTRO);
-    
-    if (!abaCadastro) {
-      logError('Aba de cadastro não encontrada', null, {abaName: CONSTANTES.ABA_ALUNOS_CADASTRO});
-      return null;
-    }
-    
-    var dados = abaCadastro.getDataRange().getValues();
-    logInfo('Procurando aluno: ' + nomeAluno + ' no cadastro...');
-    
-    for (var i = 1; i < dados.length; i++) {
-      var nomeNoCadastro = dados[i][CONSTANTES.COL_NOME_ALUNO_CADASTRO];
-      var idPlanilha = dados[i][CONSTANTES.COL_ID_PLANILHA_ALUNO_CADASTRO];
-      
-      logInfo('Verificando linha ' + i, {nome: nomeNoCadastro, id: idPlanilha});
-      
-      if (nomeNoCadastro === nomeAluno && idPlanilha) {
-        logInfo('Aluno encontrado! ID da planilha: ' + idPlanilha);
-        return idPlanilha;
-      }
-    }
-    
-    logError('Aluno não encontrado no cadastro', null, {nomeAluno: nomeAluno});
-    return null;
-  } catch (e) {
-    logError('Erro ao buscar ID da planilha do aluno', e, {nomeAluno: nomeAluno});
-    return null;
-  }
-}
-
-/**
- * Lê os dados da Central de Treinos (linhas de treino preenchidas).
- */
-function lerDadosCentralTreinos() {
-  var planilha = SpreadsheetApp.getActiveSpreadsheet();
-  var aba = planilha.getSheetByName(CONSTANTES.ABA_CENTRAL_TREINOS);
-  var dados = aba.getRange(CONSTANTES.LINHA_INICIO_TREINO_CENTRAL, 1, CONSTANTES.NUM_LINHAS_TREINO_CENTRAL, aba.getLastColumn()).getValues();
-  return dados.filter(function(linha) {
-    return linha[CONSTANTES.COL_NOME_EXERCICIO_CENTRAL] && linha[CONSTANTES.COL_NOME_EXERCICIO_CENTRAL].toString().trim() !== '';
-  });
-}
-
-/**
- * Lê os dados da semana atual do aluno.
- */
-function lerSemanaAtualAluno(idPlanilhaAluno) {
-  var planilhaAluno = SpreadsheetApp.openById(idPlanilhaAluno);
-  var abaTreino = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
-  var dados = abaTreino.getDataRange().getValues();
-  // Considera preenchido se houver algum exercício na semana
-  return dados.filter(function(linha) {
-    return linha[CONSTANTES.COL_NOME_EXERCICIO_ALUNO] && linha[CONSTANTES.COL_NOME_EXERCICIO_ALUNO].toString().trim() !== '';
-  });
-}
-
-/**
- * Apaga a semana atual do aluno (limpa a área de treino).
- */
-function apagarSemanaAtualAluno(idPlanilhaAluno) {
-  var planilhaAluno = SpreadsheetApp.openById(idPlanilhaAluno);
-  var abaTreino = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
-  abaTreino.getRange(CONSTANTES.LINHA_INICIO_TREINO_ALUNO, 1, CONSTANTES.NUM_LINHAS_TREINO_ALUNO, abaTreino.getLastColumn()).clearContent();
-}
-
-/**
- * Escreve o treino na planilha do aluno.
- */
-function escreverTreinoAluno(idPlanilhaAluno, dados) {
-  var planilhaAluno = SpreadsheetApp.openById(idPlanilhaAluno);
-  var abaTreino = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
-  abaTreino.getRange(CONSTANTES.LINHA_INICIO_TREINO_ALUNO, 1, dados.length, dados[0].length).setValues(dados);
-}
-
-/**
- * Registra o treino no log (Brainer).
- */
-function registrarTreinoBrainer(aluno, dados) {
-  try {
-    // Para o ambiente do Google Apps Script, vamos registrar na aba de log da planilha atual
-    var planilhaMae = SpreadsheetApp.getActiveSpreadsheet();
-    var abaLog = planilhaMae.getSheetByName(CONSTANTES.ABA_LOG_ACOES);
-    
-    if (!abaLog) {
-      Logger.log('Aba de log não encontrada: ' + CONSTANTES.ABA_LOG_ACOES);
-      return;
-    }
-    
-    var timestamp = new Date();
-    Logger.log('Registrando ' + dados.length + ' exercícios no log para o aluno: ' + aluno);
-    
-    dados.forEach(function(linha) {
-      var logRow = [
-        timestamp,
-        aluno,
-        linha[CONSTANTES.COL_TIPO_ATIVIDADE_CENTRAL] || '',
-        linha[CONSTANTES.COL_NOME_EXERCICIO_CENTRAL] || '',
-        linha[CONSTANTES.COL_REPETICOES_CENTRAL] || '',
-        linha[CONSTANTES.COL_CARGA_CENTRAL] || '',
-        linha[CONSTANTES.COL_ID_TREINO_SESSAO] || '',
-        linha[CONSTANTES.COL_ID_REGISTRO_UNICO] || '',
-        linha[CONSTANTES.COL_TIPO_REGISTRO] || 'Prescrito'
-      ];
-      abaLog.appendRow(logRow);
-    });
-    
-    Logger.log('Treino registrado no log com sucesso');
-  } catch (e) {
-    Logger.log('Erro ao registrar treino no log: ' + e.message);
-    // Não vamos falhar o envio por causa do log
-  }
-}
-
-/**
- * Limpa a Central de Treinos.
- */
-function limparCentralTreinos() {
-  var planilha = SpreadsheetApp.getActiveSpreadsheet();
-  var aba = planilha.getSheetByName(CONSTANTES.ABA_CENTRAL_TREINOS);
-  aba.getRange(CONSTANTES.LINHA_INICIO_TREINO_CENTRAL, 1, CONSTANTES.NUM_LINHAS_TREINO_CENTRAL, aba.getLastColumn()).clearContent();
-}
-
-/**
- * Busca o último treino enviado para o aluno na planilha Brainer.
- * Retorna um array de linhas prontas para preencher a Central de Treinos.
- */
-function buscarUltimoTreinoAlunoBrainer(nomeAluno) {
-  var planilhaBrainer = SpreadsheetApp.openById(CONSTANTES.ID_PLANILHA_BRAINER);
-  var abaLogBrainer = planilhaBrainer.getSheetByName(CONSTANTES.ABA_LOG_TREINOS_BRAINER);
-  var dados = abaLogBrainer.getDataRange().getValues();
-  // Filtra só os treinos do aluno
-  var treinosAluno = dados.filter(function(linha) {
-    return linha[CONSTANTES.COL_NOME_ALUNO_BRAINER] === nomeAluno;
-  });
-  if (treinosAluno.length === 0) return [];
-  // Agrupa por sessão (ID_Treino_Sessao ou Timestamp)
-  // Supondo que existe uma coluna de sessão ou timestamp
-  var idxSessao = CONSTANTES.COL_ID_TREINO_SESSAO_BRAINER || CONSTANTES.COL_TIMESTAMP_BRAINER;
-  // Ordena por timestamp/sessão decrescente
-  treinosAluno.sort(function(a, b) { return b[idxSessao] - a[idxSessao]; });
-  var ultimaSessao = treinosAluno[0][idxSessao];
-  // Pega todos os exercícios da última sessão
-  var ultimoTreino = treinosAluno.filter(function(linha) {
-    return linha[idxSessao] === ultimaSessao;
-  });
-  // Mapeia para o formato da Central de Treinos
-  return ultimoTreino.map(function(linha) {
-    return [
-      linha[CONSTANTES.COL_TIPO_ATIVIDADE_BRAINER],
-      linha[CONSTANTES.COL_NOME_EXERCICIO_BRAINER],
-      linha[CONSTANTES.COL_REPETICOES_BRAINER],
-      linha[CONSTANTES.COL_CARGA_BRAINER]
-      // ...adicione outros campos conforme necessário...
-    ];
-  });
-}
-
-/**
- * Carrega o último treino de um aluno na Central de Treinos
+ * Carrega o último treino do aluno da planilha Brainer
  */
 function carregarUltimoTreinoAluno() {
   try {
-    var aluno = obterAlunoSelecionado();
-    if (!aluno) {
-      showAlert('Selecione um aluno primeiro.');
-      return;
+    const ui = SpreadsheetApp.getUi();
+    const ss = SpreadsheetApp.getActive();
+    const centralSheet = ss.getSheetByName(SHEETS.CENTRAL);
+    
+    if (!centralSheet) {
+      throw new Error('Aba "Central de Treinos" não encontrada.');
     }
     
-    var ultimoTreino = buscarUltimoTreinoAlunoBrainer(aluno);
-    if (!ultimoTreino || ultimoTreino.length === 0) {
-      showAlert('Nenhum treino anterior encontrado para este aluno.');
-      return;
+    const studentId = centralSheet.getRange('A1').getValue();
+    const studentName = centralSheet.getRange('B1').getValue();
+    
+    if (!studentId || !studentName) {
+      throw new Error('Preencha o ID e nome do aluno na Central de Treinos primeiro.');
     }
     
-    // Limpar central de treinos
-    limparCentralTreinos();
+    // Buscar dados do Brainer
+    const brainer = SpreadsheetApp.openById(IDS.BRAINER);
+    const logSheet = brainer.getSheetByName(SHEETS.LOG);
+    const data = logSheet.getDataRange().getValues();
     
-    // Carregar dados na central
-    var planilha = SpreadsheetApp.getActiveSpreadsheet();
-    var aba = planilha.getSheetByName(CONSTANTES.ABA_CENTRAL_TREINOS);
-    var range = aba.getRange(CONSTANTES.LINHA_INICIO_TREINO_CENTRAL, 1, ultimoTreino.length, ultimoTreino[0].length);
-    range.setValues(ultimoTreino);
-    
-    showAlert('Último treino carregado com sucesso! (' + ultimoTreino.length + ' exercícios)');
-  } catch (e) {
-    Logger.log('Error in carregarUltimoTreinoAluno:', e);
-    showAlert('Erro ao carregar último treino: ' + e.message);
-  }
-}
-
-/**
- * Envia treino para um aluno específico via API
- * @param {string} idAluno - ID do aluno
- * @param {Object} dadosTreino - Dados do treino a enviar
- * @returns {Object} Resultado da operação
- */
-function enviarTreino(idAluno, dadosTreino) {
-  try {
-    logInfo('Iniciando envio de treino', {idAluno, treino: dadosTreino});
-    
-    // Obter ID da planilha do aluno
-    const idPlanilha = obterIdPlanilhaAluno(idAluno);
-    if (!idPlanilha) {
-      throw new Error('Planilha do aluno não encontrada');
-    }
-    
-    // Obter informações do aluno para envio
-    const infoAluno = obterInfoAluno(idAluno);
-    if (!infoAluno) {
-      throw new Error('Informações do aluno não encontradas');
-    }
-    
-    // Gerar IDs únicos para o treino
-    var timestampSessao = new Date().getTime();
-    dadosTreino = dadosTreino.map(function(linha, idx) {
-      var idRegistro = timestampSessao + '_' + (idx + 1);
-      linha.id = idRegistro;
-      linha.sessao = timestampSessao;
-      return linha;
-    });
-    
-    // Registrar treino na planilha do aluno
-    var planilhaAluno = SpreadsheetApp.openById(idPlanilha);
-    var abaTreino = planilhaAluno.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
-    
-    // TODO: Implementar conversão dos dados do formato API para formato da planilha
-    
-    // Registrar envio no histórico da planilha mãe
-    // TODO: Implementar registro no histórico
-    
-    logInfo('Treino enviado com sucesso', {idAluno});
-    return { success: true, message: 'Treino enviado com sucesso' };
-  } catch (error) {
-    logError('Erro ao enviar treino', error, {idAluno});
-    return { success: false, message: 'Erro ao enviar treino: ' + error.message };
-  }
-}
-
-/**
- * Registra feedback do treino recebido do aluno
- * @param {string} idAluno - ID do aluno
- * @param {string} idTreino - ID do treino
- * @param {Object} dadosFeedback - Dados do feedback
- * @returns {Object} Resultado da operação
- */
-function registrarFeedbackTreino(idAluno, idTreino, dadosFeedback) {
-  try {
-    logInfo('Registrando feedback', {idAluno, idTreino, feedback: dadosFeedback});
-    
-    // Obter ID da planilha do aluno
-    const idPlanilha = obterIdPlanilhaAluno(idAluno);
-    if (!idPlanilha) {
-      throw new Error('Planilha do aluno não encontrada');
-    }
-    
-    // Atualizar planilha do aluno com o feedback
-    const ss = SpreadsheetApp.openById(idPlanilha);
-    const sheetTreinos = ss.getSheetByName(CONSTANTES.ABA_TREINO_SEMANAL_ALUNO);
-    const treinos = sheetTreinos.getDataRange().getValues();
-    
-    // Encontrar o treino específico
-    let linhaEncontrada = -1;
-    for (let i = 1; i < treinos.length; i++) {
-      if (treinos[i][0] === idTreino) { // Coluna A = ID do treino
-        linhaEncontrada = i + 1; // +1 porque os índices começam em 0 mas as linhas em 1
-        break;
+    // Filtrar dados do aluno e pegar os mais recentes
+    const alunoData = [];
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][2] === studentId || data[i][3] === studentName) {
+        alunoData.push(data[i]);
       }
     }
     
-    if (linhaEncontrada === -1) {
-      throw new Error('Treino não encontrado na planilha');
+    if (alunoData.length === 0) {
+      ui.alert('Aviso', 'Nenhum treino anterior encontrado para este aluno.', ui.ButtonSet.OK);
+      return;
     }
     
-    // Atualizar as colunas de feedback
-    sheetTreinos.getRange(linhaEncontrada, 8).setValue(dadosFeedback.dificuldade); // Coluna H
-    sheetTreinos.getRange(linhaEncontrada, 9).setValue(dadosFeedback.comentario); // Coluna I
-    sheetTreinos.getRange(linhaEncontrada, 10).setValue(new Date()); // Coluna J - Data do feedback
+    // Organizar por data e pegar o último treino
+    alunoData.sort((a, b) => new Date(b[4]) - new Date(a[4])); // Ordenar por Data_Evento
     
-    logInfo('Feedback registrado com sucesso', {idAluno, idTreino});
-    return { success: true, message: 'Feedback registrado com sucesso' };
-  } catch (error) {
-    logError('Erro ao registrar feedback', error, {idAluno, idTreino});
-    return { success: false, message: 'Erro ao registrar feedback: ' + error.message };
+    // Montar estrutura para Central de Treinos
+    const exerciciosPorDia = {};
+    CONFIG.DAYS.forEach(day => exerciciosPorDia[day] = []);
+    
+    alunoData.forEach(row => {
+      const dia = row[6]; // Dia_Semana
+      if (exerciciosPorDia[dia]) {
+        exerciciosPorDia[dia].push({
+          tipo: row[9],     // Tipo_Atividade
+          nome: row[11],    // Nome_Exercicio
+          series: row[17],  // Series_Prescritas
+          reps: row[18],    // Repeticoes_prescrita
+          carga: row[19],   // Carga_prescrita
+          warmup: row[13],  // Warm_up
+          rir: row[14],     // RiR
+          tecnica: row[15], // Tecnica_para_Ultima_Serie
+          intervalo: row[16], // Intervalo
+          obs: row[20]      // Observacoes_personal
+        });
+      }
+    });
+    
+    // Limpar Central de Treinos
+    limparCentralTreinos();
+    
+    // Preencher com os dados carregados
+    const firstRow = findFirstRow('Objetivo do Dia', centralSheet);
+    let currentRow = firstRow;
+    
+    CONFIG.DAYS.forEach((day, dayIndex) => {
+      const exercicios = exerciciosPorDia[day];
+      let exerciseRow = currentRow + 3; // Primeira linha de exercícios
+      
+      exercicios.forEach((ex, index) => {
+        if (index < CONFIG.EXERCISE_ROWS) {
+          centralSheet.getRange(exerciseRow + index, 1).setValue(ex.tipo);
+          centralSheet.getRange(exerciseRow + index, 2).setValue(ex.nome);
+          centralSheet.getRange(exerciseRow + index, 3).setValue(ex.warmup);
+          centralSheet.getRange(exerciseRow + index, 4).setValue(ex.rir);
+          centralSheet.getRange(exerciseRow + index, 5).setValue(ex.tecnica);
+          centralSheet.getRange(exerciseRow + index, 6).setValue(ex.intervalo);
+          centralSheet.getRange(exerciseRow + index, 7).setValue(ex.series);
+          centralSheet.getRange(exerciseRow + index, 9).setValue(ex.reps);
+          centralSheet.getRange(exerciseRow + index, 11).setValue(ex.carga);
+          centralSheet.getRange(exerciseRow + index, 13).setValue(ex.obs);
+        }
+      });
+    
+      currentRow += CONFIG.BLOCK_HEIGHT;
+    });
+    
+    ui.alert('Sucesso', 'Último treino carregado com sucesso!', ui.ButtonSet.OK);
+    
+  } catch (e) {
+    Logger.log('Erro em carregarUltimoTreinoAluno: ' + e.message);
+    SpreadsheetApp.getUi().alert('Erro', 'Erro ao carregar treino: ' + e.message, SpreadsheetApp.getUi().ButtonSet.OK);
   }
 }
