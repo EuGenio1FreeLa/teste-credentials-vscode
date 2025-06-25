@@ -16,6 +16,10 @@ function onOpen(e) {
       .addItem('📤 Enviar Treino Semanal', 'sendWeeklyWorkout')
       .addItem('📋 Importar Treinos para Weekly', 'menuImportarCentralParaWeekly')
       .addItem('🧹 Limpar Central de Treinos', 'showLimparCentralTreinosDialog')
+      .addSeparator()
+      .addItem('🔄 Enviar Semana (Novo Método)', 'enviarSemana')
+      .addItem('🔍 Debug Montar Row Data', 'debugMontarRowData')
+      .addItem('✅ Verificar Consistência dos Dados', 'menuVerificarConsistenciaDados')
       .addToUi();
 
   } catch (err) {

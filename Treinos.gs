@@ -420,3 +420,181 @@ function carregarUltimoTreinoAluno() {
     SpreadsheetApp.getUi().alert('Erro', 'Erro ao carregar treino: ' + e.message, SpreadsheetApp.getUi().ButtonSet.OK);
   }
 }
+
+/**
+ * Monta os dados das linhas com base em linhas dinâmicas, em vez de usar o cabeçalho fixo
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - Planilha onde estão os dados
+ * @param {string} sessionId - ID da sessão de treino
+ * @param {string} studentId - ID do aluno
+ * @param {string} studentName - Nome do aluno
+ * @param {Date} eventDate - Data do evento
+ * @param {string} dayOfWeek - Dia da semana
+ * @returns {Array} Lista de arrays de dados para cada linha
+ */
+function montarRowData(sheet, sessionId, studentId, studentName, eventDate, dayOfWeek) {
+  // Determinar a linha inicial e o objetivo da sessão com base no dia da semana
+  let startRow, objetivoSessao;
+  
+  // Mapear o dia da semana para a linha inicial e obter o objetivo da sessão
+  switch(dayOfWeek) {
+    case 'Segunda-Feira':
+      startRow = 8;  // linha onde começam os exercícios de segunda (após o cabeçalho)
+      objetivoSessao = sheet.getRange("B6").getValue(); // objetivo está na célula B6
+      break;
+    case 'Terça-Feira':
+      startRow = 22; // linha onde começam os exercícios de terça (após o cabeçalho)
+      objetivoSessao = sheet.getRange("B20").getValue(); // objetivo está na célula B20
+      break;
+    case 'Quarta-Feira':
+      startRow = 36; // linha onde começam os exercícios de quarta (após o cabeçalho)
+      objetivoSessao = sheet.getRange("B34").getValue(); // objetivo está na célula B34
+      break;
+    case 'Quinta-Feira':
+      startRow = 50; // linha onde começam os exercícios de quinta (após o cabeçalho)
+      objetivoSessao = sheet.getRange("B48").getValue(); // objetivo está na célula B48
+      break;
+    case 'Sexta-Feira':
+      startRow = 64; // linha onde começam os exercícios de sexta (após o cabeçalho)
+      objetivoSessao = sheet.getRange("B62").getValue(); // objetivo está na célula B62
+      break;
+    case 'Sábado':
+      startRow = 78; // linha onde começam os exercícios de sábado (após o cabeçalho)
+      objetivoSessao = sheet.getRange("B76").getValue(); // objetivo está na célula B76
+      break;
+    case 'Domingo':
+      startRow = 92; // linha onde começam os exercícios de domingo (após o cabeçalho)
+      objetivoSessao = sheet.getRange("B90").getValue(); // objetivo está na célula B90
+      break;
+    default:
+      Logger.log(`Dia da semana não reconhecido: ${dayOfWeek}`);
+      return [];
+  }
+
+  // Log para debug
+  Logger.log(`Dia: ${dayOfWeek}, startRow: ${startRow} (após o cabeçalho), Objetivo: ${objetivoSessao}`);
+  
+  // Determinar quantas linhas processar (processamos 10 linhas de exercícios por dia)
+  const numLinhasExercicios = 10;
+  const rowDataList = [];
+
+  // Processar cada linha de exercício
+  for (let i = 0; i < numLinhasExercicios; i++) {
+    const dataRow = startRow + i;
+    
+    // Verificar se a linha possui conteúdo relevante (tipo de atividade ou nome de exercício)
+    const tipoAtividade = sheet.getRange(dataRow, 1).getValue();  // Coluna A (Tipo Atividade)
+    const nomeExercicio = sheet.getRange(dataRow, 2).getValue();  // Coluna B (Nome Exercício)
+    
+    // Pula linhas vazias
+    if (!tipoAtividade && !nomeExercicio) continue;
+    
+    // Log para debug
+    Logger.log(`Processando linha ${dataRow}: ${tipoAtividade} - ${nomeExercicio}`);
+
+    // Montar o array de dados conforme o mapeamento da consulta
+    const rowData = [
+      Utilities.getUuid(),                    // 1. ID_Registro_Unico
+      sessionId,                              // 2. ID_Treino_Sessao
+      studentId,                              // 3. ID_Aluno
+      studentName,                            // 4. Nome_Aluno
+      eventDate,                              // 5. Data_Evento
+      'treino_semanal',                       // 6. Tipo_Registro
+      dayOfWeek,                              // 7. Dia_Semana
+      objetivoSessao,                         // 8. objetivo_sessao (vem do cabeçalho do bloco, não da linha)
+      i + 1,                                  // 9. Ordem_Exercicio (índice da linha no bloco)
+      tipoAtividade,                          // 10. Tipo_Atividade (coluna A)
+      "",                                     // 11. ID_Exercicio (será preenchido posteriormente)
+      nomeExercicio,                          // 12. Nome_Exercicio (coluna B)
+      sheet.getRange(dataRow, 12).getValue(), // 13. Instrucao_Progressao (coluna L - aumentar carga/rep)
+      sheet.getRange(dataRow, 3).getValue(),  // 14. Warm_up (coluna C)
+      sheet.getRange(dataRow, 4).getValue(),  // 15. RiR (coluna D)
+      sheet.getRange(dataRow, 5).getValue(),  // 16. Técnica para Última Série (coluna E)
+      sheet.getRange(dataRow, 6).getValue(),  // 17. Intervalo (coluna F)
+      sheet.getRange(dataRow, 7).getValue(),  // 18. Series_Prescritas (coluna G)
+      sheet.getRange(dataRow, 8).getValue(),  // 19. Repetições_prescrita (coluna H)
+      sheet.getRange(dataRow, 11).getValue(), // 20. Carga_prescrita (coluna K - carga atual)
+      sheet.getRange(dataRow, 13).getValue(), // 21. Observações personal (coluna M)
+      "",                                     // 22. Feedback_aluno (vazio, será preenchido no bloco Realizado)
+      "",                                     // 23. Repeticoes_realizada
+      "",                                     // 24. Carga_realizada
+      "",                                     // 25. Warm_up_realizado
+      "",                                     // 26. RiR_realizado
+      "",                                     // 27. Tecnica_para_Ultima_Serie_realizado
+      ""                                      // 28. Intervalo_realizado
+    ];
+
+    rowDataList.push(rowData);
+    
+    // Log adicional para debug
+    Logger.log(`Dados linha ${dataRow}: Objetivo: ${rowData[7]}, Tipo: ${rowData[8]}, Nome: ${rowData[11]}`);
+  }
+  
+  Logger.log(`Total de registros processados para ${dayOfWeek}: ${rowDataList.length}`);
+  return rowDataList;
+}
+
+/**
+ * Função para testar e debugar a solução de montarRowData
+ * Permite verificar se os valores estão sendo corretamente extraídos das linhas
+ */
+function debugMontarRowData() {
+  try {
+    const sheet = SpreadsheetApp.getActive().getSheetByName(SHEETS.CENTRAL);
+    if (!sheet) {
+      throw new Error('Aba Central de Treinos não encontrada');
+    }
+    
+    const studentId = sheet.getRange('A1').getValue();
+    const studentName = sheet.getRange('B1').getValue();
+    const eventDate = sheet.getRange('B2').getValue();
+    const sessionId = Utilities.getUuid();
+    const dayOfWeek = 'Segunda-Feira';
+    
+    Logger.log('========== INICIANDO DEBUG DE montarRowData ==========');
+    Logger.log(`Aluno: ${studentName} (ID: ${studentId})`);
+    Logger.log(`Data: ${eventDate}, Dia: ${dayOfWeek}, Sessão ID: ${sessionId}`);
+    
+    // Verificando constantes
+    Logger.log('Verificando constantes necessárias:');
+    Logger.log(`COL_OBJETIVO_SESSAO: ${CONSTANTES.COL_OBJETIVO_SESSAO}`);
+    Logger.log(`COL_TIPO_ATIVIDADE: ${CONSTANTES.COL_TIPO_ATIVIDADE}`);
+    Logger.log(`COL_NOME_EXERCICIO: ${CONSTANTES.COL_NOME_EXERCICIO}`);
+    Logger.log(`COL_INSTRUCAO_PROGRESSAO: ${CONSTANTES.COL_INSTRUCAO_PROGRESSAO}`);
+    
+    // Testando o método
+    const rowData = montarRowData(sheet, sessionId, studentId, studentName, eventDate, dayOfWeek);
+    
+    Logger.log(`Total de linhas processadas: ${rowData.length}`);
+    
+    // Validando alguns resultados
+    if (rowData.length > 0) {
+      Logger.log('Amostra do primeiro registro:');
+      Logger.log(`- ID Único: ${rowData[0][0]}`);
+      Logger.log(`- Nome Aluno: ${rowData[0][3]}`);
+      Logger.log(`- Dia da Semana: ${rowData[0][6]}`);
+      Logger.log(`- Objetivo: ${rowData[0][7]}`);
+      Logger.log(`- Ordem Exercício: ${rowData[0][8]}`);
+      Logger.log(`- Tipo Atividade: ${rowData[0][9]}`);
+      Logger.log(`- Nome Exercício: ${rowData[0][11]}`);
+    }
+    
+    Logger.log('========== TESTE CONCLUÍDO ==========');
+    
+    SpreadsheetApp.getUi().alert(
+      'Debug Concluído', 
+      `O teste de montarRowData foi concluído com ${rowData.length} registros processados.\n\nVerifique o log para mais detalhes.`, 
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    
+    return rowData.length;
+  } catch (error) {
+    Logger.log(`ERRO NO DEBUG: ${error.message}`);
+    Logger.log(`Stack: ${error.stack}`);
+    SpreadsheetApp.getUi().alert(
+      'Erro durante o Debug', 
+      `Ocorreu um erro durante o teste: ${error.message}`, 
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    return 0;
+  }
+}

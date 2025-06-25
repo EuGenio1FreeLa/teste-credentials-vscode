@@ -88,6 +88,27 @@ var CONSTANTES = {
   COL_CARGA_BRAINER: 6,
   COL_ID_TREINO_SESSAO_BRAINER: 7,
   COL_TIMESTAMP_BRAINER: 0,
+  
+  // Planilha "Central de Treinos" → Colunas A…S (novo mapeamento apenas para colunas)
+  COL_ID_REGISTRO: 1,           // A
+  COL_ID_TREINO_SESSAO: 2,      // B
+  COL_ID_ALUNO: 3,              // C
+  COL_NOME_ALUNO: 4,            // D
+  COL_DATA_EVENTO: 5,           // E
+  COL_TIPO_REGISTRO: 6,         // F
+  COL_DIA_SEMANA: 7,            // G
+  COL_OBJETIVO_SESSAO: 8,       // H
+  COL_TIPO_ATIVIDADE: 9,        // I
+  COL_NOME_EXERCICIO: 10,       // J
+  COL_INSTRUCAO_PROGRESSAO: 11, // K
+  COL_WARMUP: 12,               // L
+  COL_RIR: 13,                  // M
+  COL_TECNICA_ULTIMA: 14,       // N
+  COL_INTERVALO: 15,            // O
+  COL_SERIES_PRESC: 16,         // P
+  COL_REPS_PRESC: 17,           // Q
+  COL_CARGA_PRESC: 18,          // R
+  COL_OBSERVACOES: 19,          // S
 
   // === CONFIGURAÇÕES DE INTERVALOS ===
   CELULA_DROPDOWN_ALUNO: 'B2',
@@ -161,7 +182,7 @@ const CONFIG = {
 const CENTRAL_MAPPING = {
   // Formato: day_index: { cell_type: cell_reference }
   0: { // Segunda-Feira
-    OBJETIVO_DIA: 'A6',
+    OBJETIVO_DIA: 'B6',
     ATIV_MOB_1: 'C6',
     MOBILIDADE: 'D6',
     INFERIOR: 'E6',
@@ -184,7 +205,7 @@ const CENTRAL_MAPPING = {
     AUMENTAR_CARGA_REP: 'L8:L18'
   },
   1: { // Terça-Feira
-    OBJETIVO_DIA: 'A20',
+    OBJETIVO_DIA: 'B20',
     ATIV_MOB_1: 'C20',
     MOBILIDADE: 'D20',
     INFERIOR: 'E20',
@@ -207,7 +228,7 @@ const CENTRAL_MAPPING = {
     AUMENTAR_CARGA_REP: 'L22:L32'
   },
   2: { // Quarta-Feira
-    OBJETIVO_DIA: 'A34',
+    OBJETIVO_DIA: 'B34',
     ATIV_MOB_1: 'C34',
     MOBILIDADE: 'D34',
     INFERIOR: 'E34',
@@ -230,7 +251,7 @@ const CENTRAL_MAPPING = {
     AUMENTAR_CARGA_REP: 'L36:L46'
   },
   3: { // Quinta-Feira
-    OBJETIVO_DIA: 'A48',
+    OBJETIVO_DIA: 'B48',
     ATIV_MOB_1: 'C48',
     MOBILIDADE: 'D48',
     INFERIOR: 'E48',
@@ -253,7 +274,7 @@ const CENTRAL_MAPPING = {
     AUMENTAR_CARGA_REP: 'L50:L60'
   },
   4: { // Sexta-Feira
-    OBJETIVO_DIA: 'A62',
+    OBJETIVO_DIA: 'B62',
     ATIV_MOB_1: 'C62',
     MOBILIDADE: 'D62',
     INFERIOR: 'E62',
@@ -276,7 +297,7 @@ const CENTRAL_MAPPING = {
     AUMENTAR_CARGA_REP: 'L64:L74'
   },
   5: { // Sábado
-    OBJETIVO_DIA: 'A76',
+    OBJETIVO_DIA: 'B76',
     ATIV_MOB_1: 'C76',
     MOBILIDADE: 'D76',
     INFERIOR: 'E76',
@@ -299,7 +320,7 @@ const CENTRAL_MAPPING = {
     AUMENTAR_CARGA_REP: 'L78:L88'
   },
   6: { // Domingo
-    OBJETIVO_DIA: 'A90',
+    OBJETIVO_DIA: 'B90',
     ATIV_MOB_1: 'C90',
     MOBILIDADE: 'D90',
     INFERIOR: 'E90',

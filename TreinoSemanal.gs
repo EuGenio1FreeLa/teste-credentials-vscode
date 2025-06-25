@@ -65,110 +65,51 @@ function importarCentralParaWeekly(idPlanilhaAluno) {
       }
     }
     
-    // 3. Percorrer os dias da semana e coletar registros
+    // 3. Percorrer os dias da semana e coletar registros usando a nova abordagem de linhas dinâmicas
     let registros = [];
     const days = CONFIG.DAYS;
     
     // Gerar um ID único para a sessão de treino (mesmo para todos os exercícios)
     const idTreinoSessao = Utilities.getUuid();
     
-    // Loop pelos dias da semana
+    // Loop pelos dias da semana usando a nova abordagem de montarRowData
     days.forEach((dia, dayIndex) => {
       Logger.log(`Processando dia: ${dia} (índice ${dayIndex})`);
       
       // Calcular a data específica para este dia da semana
-      const monday = new Date(mondayDate);
+      const eventDate = new Date(mondayDate.getTime() + dayIndex * 24*60*60*1000);
       
-      // Referência do mapeamento para o dia atual
-      const dayMapping = CENTRAL_MAPPING[dayIndex];
+      // Usar a nova função montarRowData para obter os dados de forma dinâmica e correta
+      const rowsData = montarRowData(sheetCentral, idTreinoSessao, studentId, nomeAluno, eventDate, dia);
       
-      // Ler valores de sessão para o dia
-      const objetivoDoDia = sheetCentral.getRange(dayMapping.OBJETIVO_DIA).getValue();
-      Logger.log(`Dia ${dia}: Lendo objetivo do dia da célula ${dayMapping.OBJETIVO_DIA}: "${objetivoDoDia}"`);
+      // Log para debug
+      Logger.log(`Dia ${dia}: processados ${rowsData.length} registros`);
       
-      const ativMob1 = sheetCentral.getRange(dayMapping.ATIV_MOB_1).getValue();
-      const mobilidade = sheetCentral.getRange(dayMapping.MOBILIDADE).getValue();
-      const inferior = sheetCentral.getRange(dayMapping.INFERIOR).getValue();
-      const ativMob2 = sheetCentral.getRange(dayMapping.ATIV_MOB_2).getValue();
-      const ativacao = sheetCentral.getRange(dayMapping.ATIVACAO).getValue();
-      const superior = sheetCentral.getRange(dayMapping.SUPERIOR).getValue();
-      const objetivoAnterior = sheetCentral.getRange(dayMapping.OBJETIVO_ANTERIOR).getValue();
-      const ativRealizadas = sheetCentral.getRange(dayMapping.ATIVACOES_REALIZADAS).getValue();
-      
-      // Ler valores gerais da linha de exercício
-      const tipoAtividade = sheetCentral.getRange(dayMapping.TIPO_ATIVIDADE).getValue();
-      const warmup = sheetCentral.getRange(dayMapping.WARM_UP).getValue();
-      const rir = sheetCentral.getRange(dayMapping.RIR).getValue();
-      const tecnica = sheetCentral.getRange(dayMapping.TECNICA_ULTIMA_SERIE).getValue();
-      const intervalo = sheetCentral.getRange(dayMapping.INTERVALO).getValue();
-      const series = sheetCentral.getRange(dayMapping.SERIES_PRESCRITAS).getValue();
-      const repsPrev = sheetCentral.getRange(dayMapping.REPETICOES_PRESCRITAS).getValue();
-      const cargaPrev = sheetCentral.getRange(dayMapping.CARGA_PRESCRITA).getValue();
-      const cargaAtual = sheetCentral.getRange(dayMapping.CARGA_ATUAL).getValue();
-      const obs = sheetCentral.getRange(dayMapping.OBSERVACOES).getValue();
-      
-      // Extrair o range dos exercícios e instruções de progressão
-      const exerciciosRange = dayMapping.EXERCICIOS.split(":");
-      const aumentarRange = dayMapping.AUMENTAR_CARGA_REP.split(":");
-      
-      // Determinar a linha inicial e final
-      const startRow = parseInt(exerciciosRange[0].substring(1), 10);
-      const endRow = parseInt(exerciciosRange[1].substring(1), 10);
-      
-      // Para cada linha de exercício no bloco
-      for (let row = startRow; row <= endRow; row++) {
-        const nomeExercicio = sheetCentral.getRange(`B${row}`).getValue();
-        
-        // Pula linhas em branco
-        if (!nomeExercicio) continue;
-        
-        // Obter o valor da instrução de progressão (aumentar carga/rep)
-        const aumentarCargaRep = sheetCentral.getRange(`L${row}`).getValue();
-        
-        // Calcular a ordem do exercício (índice dentro do dia)
-        const ordemExercicio = row - startRow + 1;
-        
-        // Buscar o ID do exercício no mapa
-        const idExercicio = exerciciosMap[nomeExercicio] || "";
-        
-        // Calcular a data específica para este dia da semana
-        const eventDate = new Date(monday.getTime() + dayIndex * 24*60*60*1000);
-        
-        // 5. Montar objeto seguindo a ordem de FIELDS
-        const registro = {
-          'ID_Registro_Unico': Utilities.getUuid(),
-          'ID_Treino_Sessao': idTreinoSessao,
-          'ID_Aluno': studentId, // 1. Agora preenchido com o ID do aluno da célula A1
-          'Nome_Aluno': nomeAluno,
-          'Data_Evento': eventDate, // 2. Agora usando a data calculada com offset para cada dia
-          'Tipo_Registro': 'TREINO_SEMANAL',
-          'Dia_Semana': dia,
-          'objetivo_sessao': objetivoDoDia, // Objetivo do dia lido da célula (A6, A20, etc.)
-          'Ordem_Exercicio': ordemExercicio,
-          'Tipo_Atividade': tipoAtividade,
-          'ID_Exercicio': idExercicio,
-          'Nome_Exercicio': nomeExercicio,
-          'Instrucao_Progressao': aumentarCargaRep,
-          'Warm_up': warmup,
-          'RiR': rir,
-          'Tecnica_para_Ultima_Serie': tecnica,
-          'Intervalo': intervalo,
-          'Series_Prescritas': series,
-          'Repeticoes_prescrita': repsPrev,
-          'Carga_prescrita': cargaAtual, // 3. Agora usando cargaAtual ao invés de cargaPrev
-          'Observacoes_personal': obs,
-          'Feedback_aluno': "",
-          'Repeticoes_realizada': "",
-          'Carga_realizada': "",
-          'Warm_up_realizado': "",
-          'RiR_realizado': "",
-          'Tecnica_para_Ultima_Serie_realizado': "",
-          'Intervalo_realizado': ""
-        };
-        
-        registros.push(registro);
-        Logger.log(`Registro para ${dia}, exercício ${nomeExercicio} adicionado`);
-        Logger.log(`Objetivo do dia para ${dia}: "${registro.objetivo_sessao}"`);
+      // Adicionar os registros processados para o dia atual ao array principal
+      if (rowsData && rowsData.length > 0) {
+        // Processar cada linha para adicionar o ID do exercício com base no mapa de exercícios
+        rowsData.forEach((rowData) => {
+          // O nome do exercício está na posição 11 do array rowData após a reestruturação
+          const nomeExercicio = rowData[11];
+          if (nomeExercicio && exerciciosMap[nomeExercicio]) {
+            // Inserir o ID do exercício na posição adequada (posição 10 corresponde a ID_Exercicio)
+            rowData[10] = exerciciosMap[nomeExercicio];
+          }
+          
+          // Criar objeto com as propriedades nomeadas para facilitar a manipulação posterior
+          const registro = {};
+          FIELDS.forEach((field, i) => {
+            registro[field] = rowData[i];
+          });
+          
+          registros.push(registro);
+          
+          // Log para debug
+          Logger.log(`Registro para ${dia}, exercício ${nomeExercicio} adicionado`);
+          Logger.log(`Objetivo do dia para ${dia}: "${registro.objetivo_sessao}"`);
+        });
+      } else {
+        Logger.log(`Nenhum registro encontrado para o dia ${dia}`);
       }
     });
     
@@ -215,8 +156,17 @@ function importarCentralParaWeekly(idPlanilhaAluno) {
       
       // Verificar se os dados foram gravados corretamente
       try {
-        const primeiraLinha = sheetWeekly.getRange(CONSTANTES.LINHA_INICIO_TREINO_ALUNO, 8, 1, 1).getValue();
-        Logger.log(`Valor gravado na coluna H (objetivo_sessao) da primeira linha: "${primeiraLinha}"`);
+        // Verificar se o objetivo da sessão foi gravado corretamente
+        const objetivoSessao = sheetWeekly.getRange(CONSTANTES.LINHA_INICIO_TREINO_ALUNO, 8, 1, 1).getValue();
+        Logger.log(`Valor gravado na coluna H (objetivo_sessao) da primeira linha: "${objetivoSessao}"`);
+        
+        // Verificar se o nome do exercício foi gravado corretamente
+        const nomeExercicio = sheetWeekly.getRange(CONSTANTES.LINHA_INICIO_TREINO_ALUNO, 12, 1, 1).getValue();
+        Logger.log(`Valor gravado na coluna L (Nome_Exercicio) da primeira linha: "${nomeExercicio}"`);
+        
+        // Verificar se a ordem do exercício foi gravada corretamente
+        const ordemExercicio = sheetWeekly.getRange(CONSTANTES.LINHA_INICIO_TREINO_ALUNO, 9, 1, 1).getValue();
+        Logger.log(`Valor gravado na coluna I (Ordem_Exercicio) da primeira linha: "${ordemExercicio}"`);
       } catch(e) {
         Logger.log(`Erro ao verificar valor gravado: ${e.message}`);
       }
@@ -265,6 +215,218 @@ function importarCentralParaWeekly(idPlanilhaAluno) {
 }
 
 /**
+ * Envia dados de treino semanal para a planilha Brainer
+ * Usa a abordagem dinâmica de linhas para evitar pegar valores do cabeçalho
+ */
+function enviarSemana() {
+  try {
+    Logger.log("Iniciando enviarSemana");
+    
+    const ss = SpreadsheetApp.getActive();
+    const central = ss.getSheetByName('Central de Treinos');
+    const brainer = SpreadsheetApp.openById(CONSTANTES.ID_PLANILHA_BRAINER).getSheetByName('log_treinos');
+    
+    // Obter informações do aluno e da sessão
+    const studentId = central.getRange('A1').getValue();
+    const studentName = central.getRange('B1').getValue();
+    const eventDate = central.getRange('B2').getValue();
+    const sessionId = Utilities.getUuid();
+    const dias = ['Segunda-Feira','Terça-Feira','Quarta-Feira','Quinta-Feira','Sexta-Feira','Sábado','Domingo'];
+    
+    Logger.log(`Aluno: ${studentName} (${studentId}), Data: ${eventDate}, Sessão: ${sessionId}`);
+    
+    // Array para armazenar todos os dados
+    let allRowData = [];
+    
+    // Processar cada dia da semana
+    dias.forEach(function(dia) {
+      Logger.log(`Processando dia: ${dia}`);
+      const rows = montarRowData(central, sessionId, studentId, studentName, eventDate, dia);
+      if (rows && rows.length > 0) {
+        Logger.log(`${rows.length} registros encontrados para ${dia}`);
+        allRowData = allRowData.concat(rows);
+      } else {
+        Logger.log(`Nenhum registro encontrado para ${dia}`);
+      }
+    });
+    
+    // Se existirem registros para enviar
+    if (allRowData.length > 0) {
+      Logger.log(`Total de ${allRowData.length} registros para enviar`);
+      
+      // Enviar dados para a planilha Brainer
+      const lastRow = brainer.getLastRow();
+      if (lastRow > 0) {
+        brainer.getRange(lastRow + 1, 1, allRowData.length, allRowData[0].length)
+          .setValues(allRowData);
+      } else {
+        brainer.getRange(1, 1, allRowData.length, allRowData[0].length)
+          .setValues(allRowData);
+      }
+      
+      Logger.log("Dados enviados com sucesso para a planilha Brainer");
+
+      // Atualizar a planilha do aluno
+      const studentSheetId = getStudentSpreadsheetId(studentId, studentName);
+      const result = importarCentralParaWeekly(studentSheetId);
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+
+      Logger.log("Dados enviados com sucesso para a planilha do aluno");
+      return { success: true, message: `${allRowData.length} registros enviados com sucesso.` };
+    } else {
+      Logger.log("Nenhum registro para enviar");
+      return { success: false, message: "Nenhum registro para enviar." };
+    }
+  } catch (error) {
+    Logger.log(`Erro ao enviar dados: ${error.message}`);
+    Logger.log(`Stack: ${error.stack}`);
+    return { success: false, message: `Erro ao enviar dados: ${error.message}` };
+  }
+}
+
+/**
+ * Verifica a consistência dos dados entre a planilha do aluno e a planilha Brainer
+ * Esta função é usada para debug e garantir que os dados estão sendo gravados da mesma forma
+ * em ambas as planilhas
+ */
+function verificarConsistenciaDados() {
+  try {
+    const ui = SpreadsheetApp.getUi();
+    const ss = SpreadsheetApp.getActive();
+    const sheetCentral = ss.getSheetByName(SHEETS.CENTRAL);
+    
+    if (!sheetCentral) {
+      throw new Error('Aba Central de Treinos não encontrada.');
+    }
+    
+    // Obter informações do aluno
+    const studentId = sheetCentral.getRange("A1").getValue();
+    const studentName = sheetCentral.getRange("B1").getValue();
+    
+    if (!studentId || !studentName) {
+      throw new Error('Preencha o ID e nome do aluno na Central de Treinos.');
+    }
+    
+    // Buscar planilha do aluno
+    const studentSheetId = getStudentSpreadsheetId(studentId, studentName);
+    const ssAluno = SpreadsheetApp.openById(studentSheetId);
+    const sheetWeekly = ssAluno.getSheetByName(SHEETS.WEEKLY);
+    
+    if (!sheetWeekly) {
+      throw new Error(`Aba ${SHEETS.WEEKLY} não encontrada na planilha do aluno.`);
+    }
+    
+    // Buscar planilha Brainer
+    const ssBrainer = SpreadsheetApp.openById(IDS.BRAINER);
+    const sheetLogBrainer = ssBrainer.getSheetByName(SHEETS.LOG);
+    
+    if (!sheetLogBrainer) {
+      throw new Error(`Aba ${SHEETS.LOG} não encontrada na planilha Brainer.`);
+    }
+    
+    // Buscar dados do aluno na planilha Brainer
+    const brainerData = sheetLogBrainer.getDataRange().getValues();
+    const brainerHeaders = brainerData[0];
+    
+    // Filtrar registros do aluno na planilha Brainer (pelo ID ou nome)
+    const alunoDataBrainer = [];
+    for (let i = 1; i < brainerData.length; i++) {
+      if (brainerData[i][2] === studentId || brainerData[i][3] === studentName) {
+        alunoDataBrainer.push(brainerData[i]);
+      }
+    }
+    
+    if (alunoDataBrainer.length === 0) {
+      throw new Error('Nenhum registro encontrado para o aluno na planilha Brainer.');
+    }
+    
+    // Buscar dados da planilha do aluno
+    const alunoData = sheetWeekly.getRange(CONSTANTES.LINHA_INICIO_TREINO_ALUNO, 1, 
+                                          CONSTANTES.NUM_LINHAS_TREINO_ALUNO, FIELDS.length)
+                                .getValues()
+                                .filter(row => row[0] !== ''); // Filtrar linhas não vazias
+    
+    if (alunoData.length === 0) {
+      throw new Error('Nenhum registro encontrado na planilha do aluno.');
+    }
+    
+    // Comparar alguns registros para verificar a consistência
+    let inconsistencias = [];
+    
+    // Buscar registros pelo ID_Registro_Unico (primeira coluna)
+    for (let i = 0; i < Math.min(alunoData.length, 5); i++) { // Verificar até 5 registros
+      const idRegistro = alunoData[i][0];
+      
+      // Buscar o mesmo registro na planilha Brainer
+      let encontrado = false;
+      for (let j = 0; j < alunoDataBrainer.length; j++) {
+        if (alunoDataBrainer[j][0] === idRegistro) {
+          encontrado = true;
+          
+          // Verificar campos críticos
+          const camposCriticos = {
+            'objetivo_sessao': 7,
+            'Ordem_Exercicio': 8,
+            'Nome_Exercicio': 11,
+            'Warm_up': 13,
+            'Series_Prescritas': 17
+          };
+          
+          // Verificar se os valores são iguais
+          for (const [campo, indice] of Object.entries(camposCriticos)) {
+            if (alunoData[i][indice] !== alunoDataBrainer[j][indice]) {
+              inconsistencias.push({
+                id: idRegistro,
+                campo: campo,
+                valorAluno: alunoData[i][indice],
+                valorBrainer: alunoDataBrainer[j][indice]
+              });
+            }
+          }
+          
+          break;
+        }
+      }
+      
+      if (!encontrado) {
+        inconsistencias.push({
+          id: idRegistro,
+          erro: 'Registro não encontrado na planilha Brainer'
+        });
+      }
+    }
+    
+    // Reportar resultados
+    if (inconsistencias.length === 0) {
+      ui.alert('Verificação Concluída', 
+              'Dados consistentes! Os registros verificados possuem os mesmos valores em ambas as planilhas.',
+              ui.ButtonSet.OK);
+    } else {
+      let mensagem = `Encontradas ${inconsistencias.length} inconsistências:\n\n`;
+      inconsistencias.forEach((inc, i) => {
+        if (inc.erro) {
+          mensagem += `${i+1}. ${inc.erro} (ID: ${inc.id})\n`;
+        } else {
+          mensagem += `${i+1}. Campo "${inc.campo}" com valores diferentes:\n` +
+                      `   - Planilha Aluno: ${inc.valorAluno}\n` +
+                      `   - Planilha Brainer: ${inc.valorBrainer}\n`;
+        }
+      });
+      
+      ui.alert('Inconsistências Encontradas', mensagem, ui.ButtonSet.OK);
+    }
+    
+    return { success: true, inconsistencias: inconsistencias };
+  } catch (error) {
+    Logger.log(`Erro na verificação: ${error.message}`);
+    SpreadsheetApp.getUi().alert('Erro', `Erro ao verificar consistência: ${error.message}`, SpreadsheetApp.getUi().ButtonSet.OK);
+    return { success: false, message: error.message };
+  }
+}
+
+/**
  * Função auxiliar para ser usada via menu
  * Importa dados da Central de Treinos para o aluno selecionado
  */
@@ -276,4 +438,12 @@ function menuImportarCentralParaWeekly() {
   } else {
     SpreadsheetApp.getUi().alert("Erro", result.message, SpreadsheetApp.getUi().ButtonSet.OK);
   }
+}
+
+/**
+ * Função auxiliar para ser usada via menu
+ * Verifica a consistência dos dados entre planilhas
+ */
+function menuVerificarConsistenciaDados() {
+  verificarConsistenciaDados();
 }

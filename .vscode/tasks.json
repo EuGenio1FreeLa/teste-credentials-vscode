@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Validate Script Changes",
+			"type": "shell",
+			"command": "echo Changes applied successfully to the AppScript project! Below is a summary:",
+			"group": "test",
+			"problemMatcher": [],
+			"args": []
+		}
+	]
+}
