@@ -5,6 +5,7 @@ Sistema completo e unificado para gestão de treinos de personal trainer usando 
 ## 🚀 Funcionalidades
 
 - **📤 Envio de Treinos**: Sistema unificado para enviar treinos semanais
+- **📋 Importar Central para Weekly**: Nova funcionalidade para importar dados da Central de Treinos para o formato treino_semanal
 - **📥 Coleta de Feedback**: Coleta feedback dos treinos realizados pelos alunos
 - **🔄 Carregar Último Treino**: Carrega treinos anteriores do histórico
 - **➡️ Cadastro de Alunos**: Interface HTML para cadastrar novos alunos
@@ -16,8 +17,9 @@ Sistema completo e unificado para gestão de treinos de personal trainer usando 
 ```
 src/
 ├── main.js                 # Menu principal e funções de entrada
-├── setup.js               # Configuração inicial do sistema
-├── appsscript.json        # Configurações do Apps Script
+├── setup.js                # Configuração inicial do sistema
+├── appsscript.json         # Configurações do Apps Script
+├── TreinoSemanal.gs        # Funções para importação de dados da Central para Weekly
 ├── core/
 │   ├── constants.js       # Constantes globais do sistema
 │   ├── utils.js          # Funções utilitárias

@@ -223,13 +223,15 @@ function sendWeeklyWorkout() {
       mondayDate: { value: mondayDate, message: 'Preencha a data de início da semana na célula B2 da aba "Central de Treinos".' }
     });
 
-    const firstRow = findFirstRow('Objetivo do Dia', sheet);
-    const records = extractExercises(sheet, firstRow, CONFIG.BLOCK_HEIGHT, CONFIG.DAYS, sheet.getLastColumn(), mondayDate, studentId, studentName, FIELDS);
     const studentSheetId = getStudentSpreadsheetId(studentId, studentName);
-
-    writeSheet(studentSheetId, SHEETS.WEEKLY, records, FIELDS);
-    writeSheet(IDS.BRAINER, SHEETS.LOG, records, FIELDS);
-
+    
+    // Usar a nova função para importar dados da Central para Weekly
+    const result = importarCentralParaWeekly(studentSheetId);
+    
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+    
     Logger.log('Treino semanal enviado com sucesso!');
     SpreadsheetApp.getUi().alert('Sucesso', 'Treino enviado com sucesso para ' + studentName + '!', SpreadsheetApp.getUi().ButtonSet.OK);
     return true;
