@@ -246,10 +246,6 @@ function sendWeeklyWorkout() {
  * Função principal unificada para enviar treino semanal
  * Esta é a única função necessária para envio de treinos
  */
-function enviarTreino() {
-  return sendWeeklyWorkout();
-}
-
 /**
  * Coleta o feedback preenchido pelo aluno e atualiza o Brainer.
  */

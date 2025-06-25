@@ -13,7 +13,7 @@ function onOpen(e) {
     // Menu unificado apenas com as funções administrativas principais
     ui.createMenu('🔥 Personal Trainer')
       .addItem('➡️ Cadastrar Novo Aluno', 'abrirFormularioCadastro')
-      .addItem('📤 Enviar Treino Semanal', 'enviarTreino')
+      .addItem('📤 Enviar Treino Semanal', 'sendWeeklyWorkout')
       .addItem('📋 Importar Treinos para Weekly', 'menuImportarCentralParaWeekly')
       .addItem('🧹 Limpar Central de Treinos', 'showLimparCentralTreinosDialog')
       .addToUi();

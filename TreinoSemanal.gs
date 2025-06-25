@@ -50,7 +50,8 @@ function importarCentralParaWeekly(idPlanilhaAluno) {
     
     // Obter informações do aluno
     const nomeAluno = sheetCentral.getRange("B1").getValue();
-    const dataEvento = sheetCentral.getRange("B2").getValue();
+    const studentId = sheetCentral.getRange("A1").getValue();  // 1. Ler o ID do aluno da célula A1
+    const mondayDate = sheetCentral.getRange("B2").getValue(); // Usar B2 como data de segunda-feira
     
     // 2. Obter referência de ID de exercícios (para lookup nome -> ID)
     const sheetExercicios = ssMaster.getSheetByName("Exercicios");
@@ -75,11 +76,16 @@ function importarCentralParaWeekly(idPlanilhaAluno) {
     days.forEach((dia, dayIndex) => {
       Logger.log(`Processando dia: ${dia} (índice ${dayIndex})`);
       
+      // Calcular a data específica para este dia da semana
+      const monday = new Date(mondayDate);
+      
       // Referência do mapeamento para o dia atual
       const dayMapping = CENTRAL_MAPPING[dayIndex];
       
       // Ler valores de sessão para o dia
       const objetivoDoDia = sheetCentral.getRange(dayMapping.OBJETIVO_DIA).getValue();
+      Logger.log(`Dia ${dia}: Lendo objetivo do dia da célula ${dayMapping.OBJETIVO_DIA}: "${objetivoDoDia}"`);
+      
       const ativMob1 = sheetCentral.getRange(dayMapping.ATIV_MOB_1).getValue();
       const mobilidade = sheetCentral.getRange(dayMapping.MOBILIDADE).getValue();
       const inferior = sheetCentral.getRange(dayMapping.INFERIOR).getValue();
@@ -125,16 +131,19 @@ function importarCentralParaWeekly(idPlanilhaAluno) {
         // Buscar o ID do exercício no mapa
         const idExercicio = exerciciosMap[nomeExercicio] || "";
         
+        // Calcular a data específica para este dia da semana
+        const eventDate = new Date(monday.getTime() + dayIndex * 24*60*60*1000);
+        
         // 5. Montar objeto seguindo a ordem de FIELDS
         const registro = {
           'ID_Registro_Unico': Utilities.getUuid(),
           'ID_Treino_Sessao': idTreinoSessao,
-          'ID_Aluno': "", // Pode ser preenchido se disponível
+          'ID_Aluno': studentId, // 1. Agora preenchido com o ID do aluno da célula A1
           'Nome_Aluno': nomeAluno,
-          'Data_Evento': dataEvento,
+          'Data_Evento': eventDate, // 2. Agora usando a data calculada com offset para cada dia
           'Tipo_Registro': 'TREINO_SEMANAL',
           'Dia_Semana': dia,
-          'objetivo_sessao': objetivoDoDia,
+          'objetivo_sessao': objetivoDoDia, // Objetivo do dia lido da célula (A6, A20, etc.)
           'Ordem_Exercicio': ordemExercicio,
           'Tipo_Atividade': tipoAtividade,
           'ID_Exercicio': idExercicio,
@@ -146,7 +155,7 @@ function importarCentralParaWeekly(idPlanilhaAluno) {
           'Intervalo': intervalo,
           'Series_Prescritas': series,
           'Repeticoes_prescrita': repsPrev,
-          'Carga_prescrita': cargaPrev,
+          'Carga_prescrita': cargaAtual, // 3. Agora usando cargaAtual ao invés de cargaPrev
           'Observacoes_personal': obs,
           'Feedback_aluno': "",
           'Repeticoes_realizada': "",
@@ -159,6 +168,7 @@ function importarCentralParaWeekly(idPlanilhaAluno) {
         
         registros.push(registro);
         Logger.log(`Registro para ${dia}, exercício ${nomeExercicio} adicionado`);
+        Logger.log(`Objetivo do dia para ${dia}: "${registro.objetivo_sessao}"`);
       }
     });
     
@@ -171,6 +181,15 @@ function importarCentralParaWeekly(idPlanilhaAluno) {
       headers.map(col => reg[col] !== undefined ? reg[col] : '')
     );
     
+    // Debug: Verificar se objetivo_sessao está sendo incluído nos valores
+    Logger.log(`Verificando valores para debug:`);
+    Logger.log(`Headers: ${headers.join(', ')}`);
+    Logger.log(`Posição de 'objetivo_sessao' nos headers: ${headers.indexOf('objetivo_sessao')}`);
+    if (valores.length > 0) {
+      Logger.log(`Exemplo de valores para primeiro registro: ${valores[0].join(', ')}`);
+      Logger.log(`Valor de objetivo_sessao no primeiro registro: ${valores[0][headers.indexOf('objetivo_sessao')]}`);
+    }
+    
     Logger.log(`Total de registros a gravar: ${valores.length}`);
     
     // Limpar o bloco antigo e escrever novo
@@ -182,11 +201,25 @@ function importarCentralParaWeekly(idPlanilhaAluno) {
                  CONSTANTES.NUM_LINHAS_TREINO_ALUNO, headers.length)
         .clearContent();
       
+      // Debug: Logar informações antes de gravar
+      Logger.log(`Preparando para gravar ${valores.length} registros na aba treino_semanal`);
+      Logger.log(`Iniciando na linha ${CONSTANTES.LINHA_INICIO_TREINO_ALUNO}, gravando ${headers.length} colunas`);
+      
       // Escrever novos dados
       sheetWeekly
         .getRange(CONSTANTES.LINHA_INICIO_TREINO_ALUNO, 1, 
                  valores.length, headers.length)
         .setValues(valores);
+        
+      Logger.log(`Valores gravados na aba treino_semanal`);
+      
+      // Verificar se os dados foram gravados corretamente
+      try {
+        const primeiraLinha = sheetWeekly.getRange(CONSTANTES.LINHA_INICIO_TREINO_ALUNO, 8, 1, 1).getValue();
+        Logger.log(`Valor gravado na coluna H (objetivo_sessao) da primeira linha: "${primeiraLinha}"`);
+      } catch(e) {
+        Logger.log(`Erro ao verificar valor gravado: ${e.message}`);
+      }
       
       // ---- Gravar na planilha Brainer (log) ----
       try {
